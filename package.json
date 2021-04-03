@@ -639,7 +639,7 @@
         "moment": "^2.29.1",
         "nuget": "^2.0.2",
         "opn": "^5.5.0",
-        "rimraf": "2.6.3",
+        "rimraf": "3.0.2",
         "shelljs": "^0.8.4",
         "strip-json-comments": "^3.1.1",
         "vscode-azureextensionui": "^0.35.2",
