@@ -6,7 +6,7 @@ import * as assert from 'assert';
 import * as fse from 'fs-extra';
 import { Uri } from 'vscode';
 import { parseError } from 'vscode-azureextensionui';
-import { DeploymentParametersDoc, DeploymentTemplateDoc, Issue } from "../../extension.bundle";
+import { DeploymentParametersDoc, DeploymentTemplateDoc, Issue, IssueSeverity } from "../../extension.bundle";
 import { IDeploymentParametersFile, IPartialDeploymentTemplate } from './diagnostics';
 import { resolveInTestFolder } from './resolveInTestFolder';
 import { stringify } from "./stringify";
@@ -14,18 +14,19 @@ import { stringify } from "./stringify";
 /**
  * Given a deployment template (string or object), parses it, optionally verifying expected diagnostic messages
  */
-export async function parseTemplate(
+export function parseTemplate(
     template: string | IPartialDeploymentTemplate,
     expectedDiagnosticMessages?: string[],
     options?: {
         fromFile?: boolean; // if true, template is a path
         ignoreWarnings?: boolean;
+        ignoreInfos?: boolean;
         includeDiagnosticLineNumbers?: boolean;
         replacements?: { [key: string]: string | { [key: string]: unknown } };
     }
-): Promise<DeploymentTemplateDoc> {
+): DeploymentTemplateDoc {
     // Go ahead and allow markers in the document to be removed, we just won't mark them (makes it easier to share the same template in multiple places)
-    const { dt } = await parseTemplateWithMarkers(template, expectedDiagnosticMessages, options);
+    const { dt } = parseTemplateWithMarkers(template, expectedDiagnosticMessages, options);
     return dt;
 }
 
@@ -44,16 +45,19 @@ interface Markers {
 // tslint:disable-next-line: no-suspicious-comment
 // TODO: Make synchronous
 // tslint:disable-next-line: no-suspicious-comment
-export async function parseTemplateWithMarkers(
+export function parseTemplateWithMarkers(
     template: string | IPartialDeploymentTemplate,
     expectedDiagnosticMessages?: string[],
     options?: {
         fromFile?: boolean; // if true, template is a path
         ignoreWarnings?: boolean;
+        ignoreInfos?: boolean;
         includeDiagnosticLineNumbers?: boolean;
         replacements?: { [key: string]: string | { [key: string]: unknown } };
+        documentUri?: Uri;
+        tabSize?: number;
     }
-): Promise<{ dt: DeploymentTemplateDoc; markers: Markers }> {
+): { dt: DeploymentTemplateDoc; markers: Markers } {
     if (options?.fromFile) {
         const absPath = resolveInTestFolder(<string>template);
         const contents: string = fse.readFileSync(absPath).toString();
@@ -62,22 +66,22 @@ export async function parseTemplateWithMarkers(
 
     const withReplacements = options?.replacements ? replaceInTemplate(template, options.replacements) : template;
     const { unmarkedText, markers } = getDocumentMarkers(withReplacements, options);
-    const dt: DeploymentTemplateDoc = new DeploymentTemplateDoc(unmarkedText, Uri.file("/parseTemplate template.json"));
+    const dt: DeploymentTemplateDoc = new DeploymentTemplateDoc(unmarkedText, options?.documentUri ?? Uri.file("/test-template.json"), 0);
 
     type DiagIssue = {
         line: number;
         msg: string;
-        kind: 'Error' | 'Warning';
+        kind: IssueSeverity;
     };
 
     // Always run these even if not checking against expected, to verify nothing throws
     const errors: Issue[] = dt.getErrors(undefined);
     const warnings: Issue[] = dt.getWarnings();
-    const errorMessages = errors.map(e => <DiagIssue>{ line: e.span.startIndex, msg: getMessage(e, true), kind: 'Error' });
-    const warningMessages = warnings.map(e => <DiagIssue>{ line: e.span.startIndex, msg: getMessage(e, false), kind: 'Warning' });
-
-    function getMessage(d: Issue, isError: boolean): string {
-        const typeString = isError ? 'Error' : 'Warning';
+    const errorMessages = errors.map(e => <DiagIssue>{ line: e.span.startIndex, msg: getMessage(e), kind: e.severity });
+    const warningMessages = warnings.filter(e => e.severity === IssueSeverity.Warning).map(e => <DiagIssue>{ line: e.span.startIndex, msg: getMessage(e), kind: e.severity });
+    const infoMessages = warnings.filter(e => e.severity !== IssueSeverity.Warning).map(e => <DiagIssue>{ line: e.span.startIndex, msg: getMessage(e), kind: e.severity });
+    function getMessage(d: Issue): string {
+        const typeString = d.severity === IssueSeverity.Error ? 'Error' : d.severity === IssueSeverity.Warning ? 'Warning' : 'Information';
         let msg = `${typeString}: ${d.message}`;
         if (options?.includeDiagnosticLineNumbers) {
             msg = `${dt.getDocumentPosition(d.span.startIndex).line + 1}: ${msg}`;
@@ -88,9 +92,13 @@ export async function parseTemplateWithMarkers(
 
     if (expectedDiagnosticMessages) {
         let expected = errorMessages;
-        if (!options || !options.ignoreWarnings) {
+        if (!options?.ignoreWarnings) {
             expected = expected.concat(warningMessages);
         }
+        if (!options?.ignoreInfos) {
+            expected = expected.concat(infoMessages);
+        }
+
         const sortedExpectedDiag =
             expected.sort(
                 options?.includeDiagnosticLineNumbers
@@ -108,11 +116,11 @@ export async function parseTemplateWithMarkers(
  * Pass in a parameter file with positions marked using the notation <!tagname!>.
  * Returns the parsed document without the tags, plus a dictionary of the tags and their positions
  */
-export async function parseParametersWithMarkers(
+export function parseParametersWithMarkers(
     json: string | Partial<IDeploymentParametersFile>
-): Promise<{ dp: DeploymentParametersDoc; unmarkedText: string; markers: Markers }> {
+): { dp: DeploymentParametersDoc; unmarkedText: string; markers: Markers } {
     const { unmarkedText, markers } = getDocumentMarkers(json);
-    const dp: DeploymentParametersDoc = new DeploymentParametersDoc(unmarkedText, Uri.file("/test parameter file.json"));
+    const dp: DeploymentParametersDoc = new DeploymentParametersDoc(unmarkedText, Uri.file("/test parameter file.json"), 0);
 
     // Always run these even if not checking against expected, to verify nothing throws
     // tslint:disable-next-line:no-unused-expression
@@ -133,9 +141,9 @@ export function removeEOLMarker(s: string): string {
  * Pass in a template with positions marked using the notation <!tagname!>
  * Returns the document without the tags, plus a dictionary of the tags and their positions
  */
-export function getDocumentMarkers(doc: object | string, options?: {}): { unmarkedText: string; markers: Markers } {
+export function getDocumentMarkers(doc: object | string, options?: { tabSize?: number }): { unmarkedText: string; markers: Markers } {
     let markers: Markers = {};
-    doc = typeof doc === "string" ? doc : stringify(doc);
+    doc = typeof doc === "string" ? doc : stringify(doc, options?.tabSize);
     let modified = doc;
 
     modified = removeEOLMarker(modified);
@@ -175,7 +183,8 @@ export function getDocumentMarkers(doc: object | string, options?: {}): { unmark
 
 export function replaceInTemplate(
     template: string | IPartialDeploymentTemplate,
-    replacements: { [key: string]: string | { [key: string]: unknown } }
+    replacements: { [key: string]: string | { [key: string]: unknown } },
+    options?: {}
 ): IPartialDeploymentTemplate {
     let templateString = stringify(template);
 

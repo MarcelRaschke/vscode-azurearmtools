@@ -12,7 +12,6 @@ import * as path from 'path';
 import * as vscode from "vscode";
 import { armTemplateLanguageId, iconsPath, templateKeys } from "../constants";
 import { getResourceInfo } from '../documents/templates/getResourcesInfo';
-import { assert } from '../fixed_assert';
 import { getFriendlyExpressionFromJsonString } from '../language/expressions/friendlyExpressions';
 import * as Json from "../language/json/JSON";
 import { ContainsBehavior } from '../language/Span';
@@ -63,6 +62,7 @@ const resourceIcons: [string, string][] = [
     ["Microsoft.Automation/automationAccounts/webhooks", "automation.svg"],
     ["Microsoft.Cdn/profiles", "cdnprofiles.svg"],
     ["Microsoft.Compute/virtualMachines", "virtualmachines.svg"],
+    ["Microsoft.Compute/virtualMachineScaleSets", "virtualmachinescalesets.svg"],
     ["Microsoft.Compute/virtualMachines/extensions", "extensions.svg"],
     ["Microsoft.ContainerInstance/containerGroups", "containerinstances.svg"],
     ["Microsoft.DocumentDB/databaseAccounts", "cosmosdb.svg"],
@@ -101,6 +101,7 @@ const resourceIcons: [string, string][] = [
     ["Microsoft.KeyVault/vaults/secrets", "keyvaults.svg"],
     ["Microsoft.Media/mediaServices", "mediaservices.svg"],
     ["Microsoft.Network/azureFirewalls", "firewall.svg"],
+    ["Microsoft.Network/loadBalancers", "loadbalancers.svg"],
     ["Microsoft.Network/networkInterfaces", "nic.svg"],
     ["Microsoft.Network/networkSecurityGroups", "nsg.svg"],
     ["Microsoft.Network/networkSecurityGroups/securityRules", "nsg.svg"],
@@ -110,6 +111,7 @@ const resourceIcons: [string, string][] = [
     ["Microsoft.Network/trafficManagerProfiles", "trafficmanagerprofiles.svg"],
     ["Microsoft.Network/virtualNetworkGateways", "virtualnetworkgateways.svg"],
     ["Microsoft.Network/virtualNetworks", "virtualnetworks.svg"],
+    ["Microsoft.ServiceFabric/clusters", "servicefabric.svg"],
     ["Microsoft.Sql/instancePools", "sqlservers.svg"],
     ["Microsoft.Sql/locations/instanceFailoverGroups", "sqlservers.svg"],
     ["Microsoft.Sql/managedInstances", "sqlservers.svg"],
@@ -250,25 +252,32 @@ export class JsonOutlineProvider implements vscode.TreeDataProvider<IElementInfo
 
     public getTreeItem(elementInfo: IElementInfo): vscode.TreeItem {
         const activeTextEditor = vscode.window.activeTextEditor;
-        assert(activeTextEditor);
-        // tslint:disable-next-line: no-non-null-assertion // Asserted
-        const document = activeTextEditor!.document;
-        const start = document.positionAt(elementInfo.current.key.start);
-        const end = elementInfo.current.value.end !== undefined ? document.positionAt(elementInfo.current.value.end) : start;
+        // tslint:disable-next-line: no-suspicious-comment
+        // TODO: Shouldn't be using activeTextEditor (can be null) - store in IElementInfo?
 
-        let treeItem: vscode.TreeItem = {
-            contextValue: this.getContextValue(elementInfo),
-            label: this.getTreeNodeLabel(elementInfo),
-            collapsibleState: elementInfo.current.collapsible ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
-            iconPath: this.getIconPath(elementInfo),
-            command: {
-                arguments: [new vscode.Range(start, end)],
-                command: "azurerm-vscode-tools.treeview.goto",
-                title: "",
-            }
-        };
+        // assert(activeTextEditor, "getTreeItem: no activeTextEditor");
+        if (activeTextEditor) {
+            const document = activeTextEditor?.document;
+            const start = document.positionAt(elementInfo.current.key.start);
+            const end = elementInfo.current.value.end !== undefined ? document.positionAt(elementInfo.current.value.end) : start;
 
-        return treeItem;
+            let treeItem: vscode.TreeItem = {
+                contextValue: this.getContextValue(elementInfo),
+                label: this.getTreeNodeLabel(elementInfo),
+                collapsibleState: elementInfo.current.collapsible ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
+                iconPath: this.getIconPath(elementInfo),
+                command: {
+                    arguments: [new vscode.Range(start, end)],
+                    command: "azurerm-vscode-tools.treeview.goto",
+                    title: "",
+                }
+            };
+
+            return treeItem;
+        } else {
+            return {
+            };
+        }
     }
 
     public revealRangeInEditor(range: vscode.Range): void {

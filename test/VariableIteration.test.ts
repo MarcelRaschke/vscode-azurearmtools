@@ -45,12 +45,12 @@ suite("Variable iteration (copy blocks)", () => {
         };
 
         test("'copy' not found as a variable", async () => {
-            const dt = await parseTemplate(topLevelVariableCopyBlocks);
+            const dt = parseTemplate(topLevelVariableCopyBlocks);
             assert(!dt.topLevelScope.getVariableDefinition('copy'));
         });
 
         test("copy block names are added as variables", async () => {
-            const dt = await parseTemplate(topLevelVariableCopyBlocks);
+            const dt = parseTemplate(topLevelVariableCopyBlocks);
 
             assert(dt.topLevelScope.variableDefinitions.length === 2);
             assert(dt.topLevelScope.variableDefinitions[0].nameValue.unquotedValue === "diskNames");
@@ -59,7 +59,7 @@ suite("Variable iteration (copy blocks)", () => {
         });
 
         test("copy block value is an array of the input property", async () => {
-            const dt = await parseTemplate(topLevelVariableCopyBlocks);
+            const dt = parseTemplate(topLevelVariableCopyBlocks);
 
             const value = dt.topLevelScope.getVariableDefinition('diskNames')!.value!;
             assert(value);
@@ -70,7 +70,7 @@ suite("Variable iteration (copy blocks)", () => {
         });
 
         test("copy block usage info", async () => {
-            const dt = await parseTemplate(topLevelVariableCopyBlocks);
+            const dt = parseTemplate(topLevelVariableCopyBlocks);
 
             const diskNames = dt.topLevelScope.getVariableDefinition('diskNames')!;
             assert.deepStrictEqual(diskNames.usageInfo, {
@@ -81,7 +81,7 @@ suite("Variable iteration (copy blocks)", () => {
         });
 
         test("Find references at variable reference points to the copy block element's name property", async () => {
-            const { dt, markers: { diskNamesDefName, diskNamesRef } } = await parseTemplateWithMarkers(
+            const { dt, markers: { diskNamesDefName, diskNamesRef } } = parseTemplateWithMarkers(
                 {
                     ...topLevelVariableCopyBlocks,
                     outputs: {
@@ -95,7 +95,7 @@ suite("Variable iteration (copy blocks)", () => {
                 [],
                 { ignoreWarnings: true });
 
-            await testGetReferences(dt, diskNamesRef.index, [diskNamesRef.index, diskNamesDefName.index]);
+            testGetReferences(dt, diskNamesRef.index, [diskNamesRef.index, diskNamesDefName.index]);
 
         });
 
@@ -110,7 +110,7 @@ suite("Variable iteration (copy blocks)", () => {
                         }]
                     }
                 }),
-                fakeId);
+                fakeId, 0);
             assert(!!dt.topLevelScope.getVariableDefinition('diskNames'));
         });
 
@@ -124,7 +124,7 @@ suite("Variable iteration (copy blocks)", () => {
                         }]
                     }
                 }),
-                fakeId);
+                fakeId, 0);
 
             // Right now we still create the variable
             // CONSIDER: Instead add a parse error (https://dev.azure.com/devdiv/DevDiv/_boards/board/t/ARM%20Template%20Authoring/Stories/?workitem=1010078)
@@ -144,7 +144,7 @@ suite("Variable iteration (copy blocks)", () => {
                         }]
                     }
                 }),
-                fakeId);
+                fakeId, 0);
 
             // Right now we just don't create the variable
             // CONSIDER: Instead add a parse error (https://dev.azure.com/devdiv/DevDiv/_boards/board/t/ARM%20Template%20Authoring/Stories/?workitem=1010078)
@@ -161,7 +161,7 @@ suite("Variable iteration (copy blocks)", () => {
                         }]
                     }
                 }),
-                fakeId);
+                fakeId, 0);
 
             // Right now we just don't create the variable
             // CONSIDER: Instead add a parse error (https://dev.azure.com/devdiv/DevDiv/_boards/board/t/ARM%20Template%20Authoring/Stories/?workitem=1010078)
@@ -169,7 +169,7 @@ suite("Variable iteration (copy blocks)", () => {
         });
 
         test("case insensitive lookup", async () => {
-            const dt = await parseTemplate(topLevelVariableCopyBlocks);
+            const dt = parseTemplate(topLevelVariableCopyBlocks);
 
             assert(!!dt.topLevelScope.getVariableDefinition('DISKnAMES'));
         });
@@ -183,7 +183,7 @@ suite("Variable iteration (copy blocks)", () => {
                         "var2": "hello 2",
                     }
                 }),
-                fakeId);
+                fakeId, 0);
 
             assert.deepStrictEqual(
                 dt.topLevelScope.variableDefinitions.map(v => v.nameValue.unquotedValue),
@@ -295,7 +295,7 @@ suite("Variable iteration (copy blocks)", () => {
         };
 
         suiteSetup(async () => {
-            dt = await parseTemplate(embeddedVariableCopyBlocks);
+            dt = parseTemplate(embeddedVariableCopyBlocks);
             variable = dt.topLevelScope.getVariableDefinition('Disk-array-in-object')!;
             assert(variable);
         });
@@ -350,7 +350,7 @@ suite("Variable iteration (copy blocks)", () => {
         });
 
         test("multiple copy members", async () => {
-            const dt2: DeploymentTemplateDoc = await parseTemplate({
+            const dt2: DeploymentTemplateDoc = parseTemplate({
                 "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
                 "contentVersion": "1.0.0.0",
                 "variables": {
@@ -394,7 +394,7 @@ suite("Variable iteration (copy blocks)", () => {
                         }
                     }
                 }),
-                fakeId);
+                fakeId, 0);
             assert.deepStrictEqual(Json.asObjectValue(dt2.topLevelScope.getVariableDefinition('object')!.value)!.propertyNames, ["array1"]);
         });
 
@@ -412,7 +412,7 @@ suite("Variable iteration (copy blocks)", () => {
                         }
                     }
                 }),
-                fakeId);
+                fakeId, 0);
 
             // Right now we don't process as a copy block.  Backend does and gives an error.
             // CONSIDER: Add a parse error (https://dev.azure.com/devdiv/DevDiv/_boards/board/t/ARM%20Template%20Authoring/Stories/?workitem=1010078)
@@ -434,7 +434,7 @@ suite("Variable iteration (copy blocks)", () => {
                         }
                     }
                 }),
-                fakeId);
+                fakeId, 0);
 
             // Right now we just don't process as a copy block
             // CONSIDER: Instead add a parse error (https://dev.azure.com/devdiv/DevDiv/_boards/board/t/ARM%20Template%20Authoring/Stories/?workitem=1010078)
@@ -455,7 +455,7 @@ suite("Variable iteration (copy blocks)", () => {
                         }
                     }
                 }),
-                fakeId);
+                fakeId, 0);
 
             // Right now we just don't process as a copy block
             // CONSIDER: Instead add a parse error (https://dev.azure.com/devdiv/DevDiv/_boards/board/t/ARM%20Template%20Authoring/Stories/?workitem=1010078)
@@ -527,7 +527,7 @@ suite("Variable iteration (copy blocks)", () => {
             //           }
             //       }
 
-            const dt2 = await parseTemplate(template);
+            const dt2 = parseTemplate(template);
             const vTop: IVariableDefinition = dt2.topLevelScope.getVariableDefinition('top')!;
             const vTopValue = Json.asObjectValue(vTop.value)!;
             assert.deepStrictEqual(vTopValue.propertyNames.sort(), ["array1", "mid"]);
@@ -652,7 +652,7 @@ suite("Variable iteration (copy blocks)", () => {
             };
 
             // Make sure no errors
-            await parseTemplate(variableCopySampleTemplate, []);
+            parseTemplate(variableCopySampleTemplate, []);
         });
     }); // end suite Variable iteration sample
 

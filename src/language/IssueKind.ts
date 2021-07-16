@@ -20,6 +20,11 @@ export enum IssueKind {
     varInUdf = "varInUdf",
     undefinedVarProp = "undefinedVarProp",
     inaccessibleNestedScopeMembers = "inaccessibleNestedScopeMembers",
+    incorrectScopeWarning = "incorrectScopeWarning",
+
+    // Cannot validate nested/linked template because full validation is off
+    cannotValidateNestedTemplate = "cannotValidateNestedTemplate",
+    cannotValidateLinkedTemplate = "cannotValidateLinkedTemplate",
 
     // Parameter file issues
     params_templateFileNotFound = "params_templateFileNotFound",

@@ -2,13 +2,13 @@
     /*
         Known contexts (see KnownContexts.ts)
 
-        empty-document
+        empty-document (also works for plain JSON files)
         parameter-definitions
         parameter-values
         userfunc-parameter-definitions
         resource-body
 
-        If a location in a template document does not match ones of the above, then it will
+        If a location in a template document does not match one of the above, then it will
         be set to the name of the property containing the current array or object (e.g. "resources" or "outputs"),
         if any.
     */
@@ -132,13 +132,34 @@
         "description": "Tag Section",
         "context": "resource-body"
     },
-    "Linked Deployment": {
-        "prefix": "arm-linked-template",
+    "Linked Deployment With Relative Path": {
+        "prefix": "arm-linked-template-relative",
         "body": [
             "{",
             "\t\"name\": \"${1:linkedDeployment1}\",",
             "\t\"type\": \"Microsoft.Resources/deployments\",",
-            "\t\"apiVersion\": \"2019-10-01\",",
+            "\t\"apiVersion\": \"2020-10-01\",",
+            "\t\"properties\": {",
+            "\t\t\"mode\": \"Incremental\",",
+            "\t\t\"templateLink\": {",
+            "\t\t\t\"relativePath\": \"childTemplate.json\",",
+            "\t\t\t\"contentVersion\": \"1.0.0.0\"",
+            "\t\t},",
+            "\t\t\"parameters\": {",
+            "\t\t}",
+            "\t}",
+            "}"
+        ],
+        "description": "Linked Deployment With Relative Path",
+        "context": "resources"
+    },
+    "Linked Deployment With URI": {
+        "prefix": "arm-linked-template-uri",
+        "body": [
+            "{",
+            "\t\"name\": \"${1:linkedDeployment1}\",",
+            "\t\"type\": \"Microsoft.Resources/deployments\",",
+            "\t\"apiVersion\": \"2020-10-01\",",
             "\t\"properties\": {",
             "\t\t\"mode\": \"Incremental\",",
             "\t\t\"templateLink\": {",
@@ -150,21 +171,45 @@
             "\t}",
             "}"
         ],
-        "description": "Linked Deployment",
+        "description": "Linked Deployment With URI",
         "context": "resources"
     },
     "Nested Deployment": {
-        "prefix": "arm-nested-template",
+        "prefix": "arm-nested-template-outer",
         "body": [
             "{",
             "\t\"name\": \"${1:nestedDeployment1}\",",
             "\t\"type\": \"Microsoft.Resources/deployments\",",
-            "\t\"apiVersion\": \"2019-10-01\",",
+            "\t\"apiVersion\": \"2020-10-01\",",
+            "\t\"properties\": {",
+            "\t\t\"mode\": \"Incremental\",",
+            "\t\t\"template\": {",
+            "\t\t\t\"\\$schema\": \"https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#\",",
+            "\t\t\t\"contentVersion\": \"1.0.0.0\",",
+            "\t\t\t\"variables\": {},",
+            "\t\t\t\"resources\": [],",
+            "\t\t\t\"outputs\": {}",
+            "\t\t}",
+            "\t}",
+            "}"
+        ],
+        "description": "Nested (inline) Outer-Scoped Deployment. Expressions reference the parameters of the parent scope.",
+        "context": "resources"
+    },
+    "Nested Deployment With Inner Scope": {
+        "prefix": "arm-nested-template-inner",
+        "body": [
+            "{",
+            "\t\"name\": \"${1:nestedDeployment1}\",",
+            "\t\"type\": \"Microsoft.Resources/deployments\",",
+            "\t\"apiVersion\": \"2020-10-01\",",
             "\t\"properties\": {",
             "\t\t\"expressionEvaluationOptions\": {",
-            "\t\t\t\"scope\": \"${2|outer,inner|}\"",
+            "\t\t\t\"scope\": \"inner\"",
             "\t\t},",
             "\t\t\"mode\": \"Incremental\",",
+            "\t\t\"parameters\": {",
+            "\t\t},",
             "\t\t\"template\": {",
             "\t\t\t\"\\$schema\": \"https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#\",",
             "\t\t\t\"contentVersion\": \"1.0.0.0\",",
@@ -176,7 +221,7 @@
             "\t}",
             "}"
         ],
-        "description": "Nested (inline) Deployment",
+        "description": "Nested (inline) Inner-Scoped Deployment. Defines its own local parameters.",
         "context": "resources"
     },
     "App Service Plan (Server Farm)": {
@@ -703,7 +748,7 @@
         "prefix": "arm-automation-cert",
         "body": [
             "{",
-            "\t\"name\": \"${1:automationCertificate1}\",",
+            "\t\"name\": \"${1:parent/automationCertificate1}\",",
             "\t\"type\": \"Microsoft.Automation/automationAccounts/certificates\",",
             "\t\"apiVersion\": \"2015-10-31\",",
             "\t\"dependsOn\": [",
@@ -724,7 +769,7 @@
         "prefix": "arm-automation-cred",
         "body": [
             "{",
-            "\t\"name\": \"${1:automationCredential}\",",
+            "\t\"name\": \"${1:parent/automationCredential}\",",
             "\t\"type\": \"Microsoft.Automation/automationAccounts/credentials\",",
             "\t\"apiVersion\": \"2015-10-31\",",
             "\t\"dependsOn\": [",
@@ -744,7 +789,7 @@
         "prefix": "arm-automation-job-schedule",
         "body": [
             "{",
-            "\t\"name\": \"${1:automationJobSchedule1}\",",
+            "\t\"name\": \"${1:parent/automationJobSchedule1}\",",
             "\t\"type\": \"Microsoft.Automation/automationAccounts/jobSchedules\",",
             "\t\"apiVersion\": \"2015-10-31\",",
             "\t\"location\": \"[resourceGroup().location]\",",
@@ -770,7 +815,7 @@
         "prefix": "arm-automation-runbook",
         "body": [
             "{",
-            "\t\"name\": \"${1:automationRunbook1}\",",
+            "\t\"name\": \"${1:parent/automationRunbook1}\",",
             "\t\"type\": \"Microsoft.Automation/automationAccounts/runbooks\",",
             "\t\"apiVersion\": \"2018-06-30\",",
             "\t\"location\": \"[resourceGroup().location]\",",
@@ -798,7 +843,7 @@
         "prefix": "arm-automation-schedule",
         "body": [
             "{",
-            "\t\"name\": \"${1:automationSchedule1}\",",
+            "\t\"name\": \"${1:parent/automationSchedule1}\",",
             "\t\"type\": \"Microsoft.Automation/automationAccounts/schedules\",",
             "\t\"apiVersion\": \"2015-10-31\",",
             "\t\"tags\": {",
@@ -822,7 +867,7 @@
         "prefix": "arm-automation-variable",
         "body": [
             "{",
-            "\t\"name\": \"${1:automationVariable1}\",",
+            "\t\"name\": \"${1:parent/automationVariable1}\",",
             "\t\"type\": \"Microsoft.Automation/automationAccounts/variables\",",
             "\t\"apiVersion\": \"2015-10-31\",",
             "\t\"dependsOn\": [",

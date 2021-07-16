@@ -2,6 +2,88 @@
 
 All notable changes to the "vscode-azurearmtools" extension will be documented in this file.
 
+## Version 0.15.2
+
+### Updated
+
+- Updated schemas
+- Updated function metadata [#1311](https://github.com/microsoft/vscode-azurearmtools/issues/1311)
+
+### Fixed
+
+- Correct minor typo for `deprecrated` (thanks Jack Blower @ElvenSpellmaker!) [#1301](https://github.com/microsoft/vscode-azurearmtools/issues/1301)
+## Version 0.15.1
+
+### Added
+
+- Added icons for loadbalancer, virtual machine scaleset, and service fabric resources (thanks Jason Gilbertson @jagilber!) [#1255](https://github.com/microsoft/vscode-azuraissues/1255)
+- Understand new top-level "scope" property [#967](https://github.com/microsoft/vscode-azurearmtools/issues/967)
+
+### Fixed
+
+- Find references for a nested template parameter incorrectly finds matches in the parameter file [#1269](https://github.com/microsoft/vscode-azurearmtools/issues/1269)
+- Show apiVersions in reverse chronological order [#1279](https://github.com/microsoft/vscode-azurearmtools/issues/1279)
+- Clicking F12 while on a parameter definition should show all refs but instead says "no definition found" [#1267](https://github.com/microsoft/vscode-azurearmtools/issues/1267)
+
+### Maintenance
+- Telemetry to better understand which resource types and apiVersions do not have schemas [#1250](https://github.com/microsoft/vscode-azurearmtools/issues/1250)
+- Retrieve list of valid schemas and apiVersions from the language server for future features [#1258](https://github.com/microsoft/vscode-azurearmtools/issues/1258)
+
+## Version 0.15.0 (2021-03-08)
+
+### Added
+
+- Support for linked templates validation and parameter completion
+  - `templateLink.relativePath` (requires apiVersion 2020-06-01 or higher of Microsoft.Resources/deployments for template specs, 2020-10-01 for direct deployment)
+  - `templateLink.uri`
+  - `deployment().properties.templateLink.uri`
+  - See README.md for more information
+  - `"parametersLink"` is not supported (but `"parameters"` is)
+  - Experiences include:
+    - Validation of linked templates using the value of parameter values supplied to the template
+    - Parameter validation (missing, extra, type mismatch)
+    - "Light-bulb" and snippet support to fill in parameter values for a linked template
+    - CTRL-click on relativePath value or click on code lens to navigate to linked template
+    - Can navigate to URI-based linked templates
+  - Requires full template validation to be enabled (either all top-level parameters have a default value or else a parameter file is selected)
+- Enable full template validation if all top-level parameters have default values, even if no parameter file has been specified [#1217](https://github.com/microsoft/vscode-azurearmtools/issues/1217)
+- Show warning notification when the azureResourceManagerTools.languageServer.dotnetExePath setting is in use [#1181](https://github.com/microsoft/vscode-azurearmtools/issues/1181), [#1180](https://github.com/microsoft/vscode-azurearmtools/issues/1180)
+- Schemas updated
+
+### Fixed
+  - Clearer notification when the extension is starting up and loading schemas [#463](https://github.com/microsoft/vscode-azurearmtools/issues/463)
+  - Intellisense for AutoScaleSettings recommends "statistics" when it should be "statistic" [#1141](https://github.com/microsoft/vscode-azurearmtools/issues/1141)
+  - Incorrect validation errors in user-defined functions when using recently added builtin functions (createObject etc.) [#1153](https://github.com/microsoft/vscode-azurearmtools/issues/1153)
+
+
+## Version 0.14.1 (2021-02-05)
+
+### Fixed
+- Give warning if the wrong schema might be wrong for the deployment resources being used [#1055](https://github.com/microsoft/vscode-azurearmtools/issues/1055)
+- Add support for pickZones() function (thanks Brian Golden @bgold09!) [#1130](https://github.com/microsoft/vscode-azurearmtools/issues/1130)
+- Add mention of ARM Viewer to README [#1140](https://github.com/microsoft/vscode-azurearmtools/issues/1140)
+- Upgrade Microsoft.Resources/deployments apiVersion to support relativePath property [#1137](https://github.com/microsoft/vscode-azurearmtools/issues/1137)
+- Update schemas cache
+- Split nested snippet into inner/outer [#1157](https://github.com/microsoft/vscode-azurearmtools/issues/1157)
+
+## Version 0.14.0 (2020-11-10)
+
+### Added
+
+- New Feature: Extract to variable/parameter [#515](https://github.com/microsoft/vscode-azurearmtools/issues/515)
+  - **Thanks to Nils Hedström @nilshedstrom for implementing this new feature!**
+- Hover over an expression or a multi-line string to see a easy-to-read, formatted version of it [#1092](https://github.com/microsoft/vscodeissues/1092)
+
+### Fixed
+
+- createArray() now supports creating an empty array, update tooling to avoid false positive [#1050](https://github.com/microsoft/vscodeissues/1050)
+- Extension causes high cpu load with large numbers of variables/parameters/resources [#1051](https://github.com/microsoft/vscode-azurearmtools/issues/1051)
+- We should support getting references from the entire 'variables('xxx')' or params expression, not just inside 'xxx' [#1046](https://github.com/microsoft/vscode-azurearmtools/issues/1046)
+- Stop displaying our own error message at the same time as .net extension [#1093](https://github.com/microsoft/vscode-azurearmtools/issues/1093)
+- Validation error with resourceGroup() tags when using parameter file [#831](https://github.com/microsoft/vscode-azurearmtools/issues/831)
+- dateTimeAdd() in certain scenarios gives a template validation error [#1056](https://github.com/microsoft/vscode-azurearmtools/issues/1056)
+- Validation of template function "deployment" [#1060](https://github.com/microsoft/vscode-azurearmtools/issues/1060)
+
 ## Version 0.13.0 (2020-10-07)
 
 ### Added

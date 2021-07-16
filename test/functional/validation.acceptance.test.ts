@@ -6,6 +6,7 @@
 
 import { ITestDiagnosticsOptions, minimalDeploymentTemplate, testDiagnostics, testDiagnosticsFromFile } from "../support/diagnostics";
 import { testWithLanguageServer } from "../support/testWithLanguageServer";
+import { testMessages } from "../testConstants";
 
 suite("Acceptance validation tests (all sources)", () => {
 
@@ -34,13 +35,17 @@ suite("Acceptance validation tests (all sources)", () => {
         },
         [
             // Expected:
-            `Warning: The parameter 'backupVaultRGIsNew' is never used. (arm-template (expressions)) [32,8-32,28]`,
-            `Warning: The parameter 'backupContainerName' is never used. (arm-template (expressions)) [47,8-47,29]`,
-            'Warning: Please use https for the schema URL (arm-template (schema)) [2,15-2,95]',
+            `Warning: The parameter 'backupVaultRGIsNew' is never used. (arm-template (expressions)) [33,9-33,29]`,
+            `Warning: The parameter 'backupContainerName' is never used. (arm-template (expressions)) [48,9-48,30]`,
+            'Warning: Please use https for the schema URL (arm-template (schema)) [3,16-3,96]',
+            testMessages.linkedTemplateNoValidation("Acronis.acronis-backup-lin-20180305162104", "[197,21-197,64]"),
+            testMessages.nestedTemplateNoValidation("[concat('BackupVaultPolicy', '-', parameters('backupVaultName'), '-', parameters('backupPolicyName'))]", "[271,21-271,125]"),
+            testMessages.nestedTemplateNoValidation("[concat(parameters('virtualMachineName'), '-' , 'BackupIntent')]", "[312,21-312,87]"),
 
             // Unrelated errors:
-            `Warning: For full schema validation, consider updating the value to one of the following: \"2016-05-15\". It is possible that the current resource version is valid but that a schema has not been generated. For more information see https://aka.ms/arm-tools-apiversion. (arm-template (schema)) [240,12-240,24]`,
-            `Warning: For full schema validation, consider updating the value to one of the following: \"2016-12-01\". It is possible that the current resource version is valid but that a schema has not been generated. For more information see https://aka.ms/arm-tools-apiversion. (arm-template (schema)) [293,28-293,40]`
+            `Warning: For full schema validation, consider updating the value to one of the following: \"2016-05-15\". It is possible that the current resource version is valid but that a schema has not been generated. For more information see https://aka.ms/arm-tools-apiversion. (arm-template (schema)) [241,13-241,25]`,
+            `Warning: For full schema validation, consider updating the value to one of the following: \"2016-12-01\". It is possible that the current resource version is valid but that a schema has not been generated. For more information see https://aka.ms/arm-tools-apiversion. (arm-template (schema)) [294,29-294,41]`,
+
         ]);
 
     createAcceptanceTest(

@@ -11,8 +11,9 @@ The following guides detail how to use the ARM Tools extension features.
 - [Snippets](#Snippets)
 - [Azure schema integration](#Azure-schema-completion-and-validation)
 - [Parameter file support](#parameter-files)
-- [Completions](#completions)
+- [Linked template support](#linked-template-support)
 - [Template navigation](#template-navigation)
+- [Completions](#completions)
 - [Other features](#other-features)
 - [Extension configuration](#extension-configuration)
 
@@ -151,6 +152,82 @@ Select a new parameter file or create a new parameter file to update the associa
 
 ![Image showing the parameter file creation options (none, new, and browse)](./images/undo-change-mapping-two.png)
 
+## Linked Template Support
+
+When a [linked template](https://docs.microsoft.com/en-us/azure/azure-resource-manager/templates/linked-templates#linked-template) is referenced, it gets validated using the parameter values that are passed in.
+
+![linkedTemplateValidation](https://user-images.githubusercontent.com/6855361/109727793-9753a500-7b7a-11eb-9f5a-ddd1930c327b.png)
+
+Linked template support requires that all top-level parameters have a value. This means that a parameter file is associated with the template OR all top-level parameter definitions have a default value.
+
+Scenarios supported:
+
+- Relative path (requires Microsoft.Resources/deployments apiVersion 2020-06-01 or higher for use in template specs and 2020-10-01 for use in direct deployments):
+
+```json5
+        {
+            "name": "linkedDeployment1",
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2020-10-01",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    // Relative to current template's folder
+                    "relativePath": "child.json"
+                },
+                "parameters": {
+                }
+            }
+        }
+```
+
+- Full URI:
+
+```json5
+        {
+            "name": "linkedDeployment1",
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2020-10-01",
+            "variables": {
+                "templateUri": "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/101-vm-simple-windows/azuredeploy.json"
+            },
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[variables('templateUri)]"
+                },
+                "parameters": {
+                }
+            }
+        }
+```
+
+- Relative to deployed template location
+
+```json5
+        {
+            "name": "linkedDeployment1",
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2020-10-01",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    // When the template is deployed from a staging location, the URI be relative to the deployed
+                    // location.
+                    // While editing, this will be relative to the current template's local file folder.
+                    "uri": "[uri(deployment().properties.templateLink.uri, 'child.json')]"
+                },
+                "parameters": {
+                }
+            }
+        }
+```
+
+Additional features:
+- CTRL-click on relativePath value or click on code lens to navigate to linked template
+- ["Light-bulb" and snippet support](https://github.com/microsoft/vscode-azurearmtools/blob/mafellin/1225-linked-template-README/README.md#add-missing-parameters) to fill in parameter values for a linked template
+![linkedtemplatelightbulb](https://user-images.githubusercontent.com/6855361/109719960-088d5b00-7b6f-11eb-8e91-74b363f768ff.gif)
+
 ## Template navigation
 
 The ARM tools extension for VS Code offers several features for navigating around an ARM template.
@@ -191,6 +268,8 @@ You can also right-click on any element in the ARM Template Outline view to init
 
 ![Inserting an item into an Azure Resource Manager template](./images/insert-item-outline.png)
 
+*Thanks to Nils Hedström [@nilshedstrom](https://github.com/nilshedstrom) for implementing this feature!*
+
 ### Sort template
 
 To sort elements of an ARM template alphabetically, right-click on the template and select **Sort Template...**.
@@ -203,19 +282,41 @@ Select the element that you want to sort.
 
 Template sorting can also be engaged using the ARM template outline.
 
+*Thanks to Nils Hedström [@nilshedstrom](https://github.com/nilshedstrom) for implementing this feature!*
+
+### Extract to variable or parameter
+
+Select a JSON string or a subset of an expression string then select the lightbulb to extract it to a variable or parameter.
+
+![Image demonstrating extracting a variable and a parameter](./images/extract-vars-and-params.gif)
+
+*Thanks to Nils Hedström [@nilshedstrom](https://github.com/nilshedstrom) for implementing this feature!*
+
+### Hover to format complex expressions or multi-line strings
+
+![Image showing hovering over an expression](./images/hover-to-format-expression.png)
+
+![Image showing hovering over a multi-line string](./images/hover-to-format-string.png)
+
+To assist with navigating complex expressions or multi-line strings, VS Code has a ["Go to Bracket" command](https://www.youtube.com/watch?v=iYUJeFeXPfw&ab_channel=Code2020). You can use the [command palette](https://code.visualstudio.com/docs/getstarted/userinterface#_command-palette) or a keyboard shortcut:
+- Mac: Cmd+Shift+\
+- Windows: Ctrl+Shift+\
+- Windows with Spanish keyboard: Ctrl+Shift+|
+- Windows with German keyboard: Ctrl+Shift+^
+
 ### Miscellaneous Features
 
-  - [Signature help](https://code.visualstudio.com/docs/editor/editingevolved#_parameter-hints) for TLE function parameters
-  - [Peek](https://code.visualstudio.com/docs/editor/editingevolved#_peek) for variable and parameter definitions
-  - Find all references (Shift + F12) for variables and parameters
-  - Rename (F2) variables and parameters and their references, as well as user-defined functions or namespaces
-  - [Hover](https://code.visualstudio.com/docs/editor/editingevolved#_hover) for parameter description
-  - [TLE brace matching](https://code.visualstudio.com/docs/editor/editingevolved#_bracket-matching)
-  - User-defined template functions, see Azure [documentation](https://docs.microsoft.com/en-us/azure/azure-resource-manager/resource-group-authoring-templates#functions)
-  - Variable iteration ("copy blocks"), see Azure [documentation](https://docs.microsoft.com/en-us/azure/azure-resource-manager/resource-group-create-multiple#variable-iteration)
-  - Sort template and template sections alphabetically
-  - Nested templates (with inner or outer scope)
-  - Quick fix to add missing parameter values in the parameter file or in nested templates
+- [Signature help](https://code.visualstudio.com/docs/editor/editingevolved#_parameter-hints) for TLE function parameters
+- [Peek](https://code.visualstudio.com/docs/editor/editingevolved#_peek) for variable and parameter definitions
+- Find all references (Shift + F12) for variables and parameters
+- Rename (F2) variables and parameters and their references, as well as user-defined functions or namespaces
+- [Hover](https://code.visualstudio.com/docs/editor/editingevolved#_hover) for parameter description
+- [TLE brace matching](https://code.visualstudio.com/docs/editor/editingevolved#_bracket-matching)
+- User-defined template functions, see Azure [documentation](https://docs.microsoft.com/en-us/azure/azure-resource-manager/resource-group-authoring-templates#functions)
+- Variable iteration ("copy blocks"), see Azure [documentation](https://docs.microsoft.com/en-us/azure/azure-resource-manager/resource-group-create-multiple#variable-iteration)
+- Sort template and template sections alphabetically
+- Nested templates (with inner or outer scope)
+- Quick fix to add missing parameter values in the parameter file or in nested templates
 
 ## Extension configuration
 
@@ -252,6 +353,12 @@ Use the following wiki article to help troubleshoot these known issues.
 
 - [VS Code Azure Resource Manager snippets and cross-platform deployment scripts](https://go.microsoft.com/fwlink/?LinkID=733962)
 - [Azure Quickstart Templates](https://go.microsoft.com/fwlink/?LinkID=734038)
+
+## Visualizing ARM Templates
+
+Another helpful extension for authoring ARM templates is the [ARM Viewer for VS Code extension](https://marketplace.visualstudio.com/items?itemName=bencoleman.armview). This extension displays a graphical preview of ARM templates. The view will show all resources with the official Azure icons and also linkage between the resources.
+
+You can find details on its features and usage by visiting the GitHub repo here: https://github.com/benc-uk/armview-vscode#usage
 
 ## Contributing
 

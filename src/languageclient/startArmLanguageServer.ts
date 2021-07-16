@@ -6,26 +6,41 @@
 import * as fse from 'fs-extra';
 import * as os from 'os';
 import * as path from 'path';
-import { ProgressLocation, window, workspace } from 'vscode';
-import { callWithTelemetryAndErrorHandling, callWithTelemetryAndErrorHandlingSync, IActionContext, parseError } from 'vscode-azureextensionui';
+import { CancellationToken, CompletionContext, CompletionItem, CompletionList, Diagnostic, Event, EventEmitter, Position, ProgressLocation, TextDocument, Uri, window, workspace } from 'vscode';
+import { callWithTelemetryAndErrorHandling, callWithTelemetryAndErrorHandlingSync, IActionContext, ITelemetryContext, parseError } from 'vscode-azureextensionui';
 import { LanguageClient, LanguageClientOptions, RevealOutputChannelOn, ServerOptions } from 'vscode-languageclient';
+import { delay } from '../../test/support/delay';
 import { acquireSharedDotnetInstallation } from '../acquisition/acquireSharedDotnetInstallation';
-import { armTemplateLanguageId, configKeys, configPrefix, downloadDotnetVersion, languageFriendlyName, languageServerFolderName, languageServerName } from '../constants';
+import { armTemplateLanguageId, backendValidationDiagnosticsSource, configKeys, configPrefix, downloadDotnetVersion, languageFriendlyName, languageServerFolderName, languageServerName, notifications } from '../constants';
+import { convertDiagnosticUrisToLinkedTemplateSchema, INotifyTemplateGraphArgs, IRequestOpenLinkedFileArgs, onRequestOpenLinkedFile } from '../documents/templates/linkedTemplates/linkedTemplates';
 import { templateDocumentSelector } from '../documents/templates/supported';
 import { ext } from '../extensionVariables';
 import { assert } from '../fixed_assert';
+import { assertNever } from '../util/assertNever';
+import { delayWhileSync } from '../util/delayWhileSync';
 import { WrappedErrorHandler } from './WrappedErrorHandler';
 
 const languageServerDllName = 'Microsoft.ArmLanguageServer.dll';
 const defaultTraceLevel = 'Warning';
+const _notifyTemplateGraphAvailableEmitter: EventEmitter<INotifyTemplateGraphArgs & ITelemetryContext> = new EventEmitter<INotifyTemplateGraphArgs & ITelemetryContext>();
+
+let haveFirstSchemasStartedLoading: boolean = false;
+let haveFirstSchemasFinishedLoading: boolean = false;
+let isShowingLoadingSchemasProgress: boolean = false;
 
 export enum LanguageServerState {
-    NotStarted,
-    Starting,
-    Failed,
-    Started,
-    Stopped,
+    NotStarted, // 0
+    Starting, // 1
+    Failed, // 2
+    Running, // 3
+    Stopped, // 4
+    LoadingSchemas, // 5
 }
+
+/**
+ * An event that fires when the language server notifies us of the current full template graph of a root template
+ */
+export const notifyTemplateGraphAvailable: Event<INotifyTemplateGraphArgs & ITelemetryContext> = _notifyTemplateGraphAvailableEmitter.event;
 
 export async function stopArmLanguageServer(): Promise<void> {
     // Work-around for https://github.com/microsoft/vscode/issues/83254 - store languageServerState global via ext to keep it a singleton
@@ -47,30 +62,51 @@ export async function stopArmLanguageServer(): Promise<void> {
 }
 
 export function startArmLanguageServerInBackground(): void {
+    switch (ext.languageServerState) {
+        case LanguageServerState.Running:
+        case LanguageServerState.Starting:
+        case LanguageServerState.LoadingSchemas:
+            // Nothing to do
+            return;
+
+        case LanguageServerState.Failed:
+        case LanguageServerState.NotStarted:
+        case LanguageServerState.Stopped:
+            break;
+
+        default:
+            assertNever(ext.languageServerState);
+    }
+
+    ext.languageServerState = LanguageServerState.Starting;
+
     window.withProgress(
         {
-            location: ProgressLocation.Window,
+            location: ProgressLocation.Notification,
             title: `Starting ${languageServerName}`
         },
         async () => {
             await callWithTelemetryAndErrorHandling('startArmLanguageServer', async (actionContext: IActionContext) => {
                 actionContext.telemetry.suppressIfSuccessful = true;
 
-                ext.languageServerState = LanguageServerState.Starting;
                 try {
                     // The server is implemented in .NET Core. We run it by calling 'dotnet' with the dll as an argument
                     let serverDllPath: string = findLanguageServer();
                     let dotnetExePath: string | undefined = await getDotNetPath();
                     if (!dotnetExePath) {
                         // Acquisition failed
+                        ext.languageServerStartupError = ".dotnet acquisition returned no path";
                         ext.languageServerState = LanguageServerState.Failed;
                         return;
                     }
 
                     await startLanguageClient(serverDllPath, dotnetExePath);
 
-                    ext.languageServerState = LanguageServerState.Started;
+                    ext.languageServerState = haveFirstSchemasFinishedLoading ?
+                        LanguageServerState.Running :
+                        LanguageServerState.LoadingSchemas;
                 } catch (error) {
+                    ext.languageServerStartupError = `${parseError(error).message}: ${error instanceof Error ? error.stack : 'no stack'}`;
                     ext.languageServerState = LanguageServerState.Failed;
                     throw error;
                 }
@@ -89,7 +125,7 @@ async function getLangServerVersion(): Promise<string | undefined> {
     });
 }
 
-export async function startLanguageClient(serverDllPath: string, dotnetExePath: string): Promise<void> {
+async function startLanguageClient(serverDllPath: string, dotnetExePath: string): Promise<void> {
     // tslint:disable-next-line: no-suspicious-comment
     // tslint:disable-next-line: max-func-body-length // TODO: Refactor function
     await callWithTelemetryAndErrorHandling('startArmLanguageClient', async (actionContext: IActionContext) => {
@@ -138,6 +174,45 @@ export async function startLanguageClient(serverDllPath: string, dotnetExePath: 
             revealOutputChannelOn: RevealOutputChannelOn.Error,
             synchronize: {
                 configurationSection: configPrefix
+            },
+            middleware: {
+                handleDiagnostics: (uri: Uri, diagnostics: Diagnostic[], next: (uri: Uri, diagnostics: Diagnostic[]) => void): void => {
+                    for (const d of diagnostics) {
+                        if (d.source === backendValidationDiagnosticsSource) {
+                            convertDiagnosticUrisToLinkedTemplateSchema(d);
+                        }
+                    }
+                    next(uri, diagnostics);
+                },
+                provideCompletionItem: async (document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: (document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken) => undefined | null | CompletionItem[] | CompletionList | Thenable<undefined | null | CompletionItem[] | CompletionList>): Promise<undefined | null | CompletionItem[] | CompletionList> => {
+                    let result: CompletionItem[] | CompletionList | undefined | null = await next(document, position, context, token);
+
+                    if (result) {
+                        let items: CompletionList | CompletionItem[] = result;
+                        let isIncomplete: boolean = false;
+                        if (items instanceof CompletionList) {
+                            isIncomplete = items.isIncomplete ?? false;
+                            items = items.items;
+                        }
+
+                        if (items.every(item => isApiVersion(item.label))) {
+                            // It's a list of apiVersion completions
+                            // Show them in reverse order so the newest is at the top of the list
+                            const countItems = items.length;
+                            items = items.map((ci, index) => {
+                                if (!ci.sortText) {
+                                    let sortText = (countItems - index).toString(10);
+                                    sortText = sortText.padStart(10 - sortText.length, '0');
+                                    ci.sortText = sortText;
+                                }
+                                return ci;
+                            });
+                            result = new CompletionList(items, isIncomplete);
+                        }
+                    }
+
+                    return result;
+                },
             }
         };
 
@@ -153,7 +228,7 @@ export async function startLanguageClient(serverDllPath: string, dotnetExePath: 
             armTemplateLanguageId,
             languageFriendlyName, // Used in the Output window combobox
             serverOptions,
-            clientOptions
+            clientOptions,
         );
 
         // Use an error handler that sends telemetry
@@ -172,11 +247,25 @@ export async function startLanguageClient(serverDllPath: string, dotnetExePath: 
         });
 
         try {
+            // client.trace = Trace.Messages;
+
             let disposable = client.start();
             ext.context.subscriptions.push(disposable);
 
             await client.onReady();
             ext.languageServerClient = client;
+
+            client.onRequest(notifications.requestOpenLinkedTemplate, async (args: IRequestOpenLinkedFileArgs) => {
+                return onRequestOpenLinkedFile(args);
+            });
+
+            client.onNotification(notifications.notifyTemplateGraph, async (args: INotifyTemplateGraphArgs) => {
+                onNotifyTemplateGraph(args);
+            });
+
+            client.onNotification(notifications.schemaValidationNotification, async (args: notifications.ISchemaValidationNotificationArgs) => {
+                onSchemaValidationNotication(args);
+            });
         } catch (error) {
             throw new Error(
                 `${languageServerName}: An error occurred starting the language server.${os.EOL}${os.EOL}${parseError(error).message}`
@@ -194,6 +283,11 @@ async function getDotNetPath(): Promise<string | undefined> {
 
         const overriddenDotNetExePath = workspace.getConfiguration(configPrefix).get<string>(configKeys.dotnetExePath);
         if (typeof overriddenDotNetExePath === "string" && !!overriddenDotNetExePath) {
+            ext.outputChannel.appendLine(
+                `WARNING: ${configPrefix}.${configKeys.dotnetExePath} is set. ` +
+                `This overrides the automatic download and usage of the dotnet runtime and should only be used to work around dotnet installation issues. ` +
+                `If you encounter problems, please try clearing this setting.`);
+            ext.outputChannel.appendLine("");
             if (!(await isFile(overriddenDotNetExePath))) {
                 throw new Error(`Invalid path given for ${configPrefix}.${configKeys.dotnetExePath} setting. Must point to dotnet executable. Could not find file ${overriddenDotNetExePath}`);
             }
@@ -204,7 +298,10 @@ async function getDotNetPath(): Promise<string | undefined> {
 
             dotnetPath = await acquireSharedDotnetInstallation(downloadDotnetVersion);
             if (!dotnetPath) {
-                throw new Error("acquireSharedDotnetInstallation didn't return a path");
+                // Error is handled by dotnet extension
+                actionContext.errorHandling.suppressDisplay = true;
+                actionContext.errorHandling.rethrow = false;
+                throw new Error("acquireSharedDotnetInstallation failed (didn't return a path)");
             }
 
             if (!(await isFile(dotnetPath))) {
@@ -268,4 +365,102 @@ function findLanguageServer(): string {
 
 async function isFile(pathPath: string): Promise<boolean> {
     return (await fse.pathExists(pathPath)) && (await fse.stat(pathPath)).isFile();
+}
+
+/**
+ * Handles a notification from the language server that provides us the linked template reference graph
+ * @param sourceTemplateUri The full URI of the template which contains the link
+ * @param requestedLinkPath The full URI of the resolved link being requested
+ */
+
+function onNotifyTemplateGraph(args: INotifyTemplateGraphArgs): void {
+    callWithTelemetryAndErrorHandlingSync('notifyTemplateGraph', async (context: IActionContext) => {
+        _notifyTemplateGraphAvailableEmitter.fire(<INotifyTemplateGraphArgs & ITelemetryContext>Object.assign({}, context.telemetry, args));
+    });
+}
+
+function onSchemaValidationNotication(args: notifications.ISchemaValidationNotificationArgs): void {
+    if (!haveFirstSchemasStartedLoading) {
+        haveFirstSchemasStartedLoading = true;
+    }
+    if (args.completed && !haveFirstSchemasFinishedLoading) {
+        haveFirstSchemasFinishedLoading = true;
+    }
+
+    const isLoadingSchemas = haveFirstSchemasStartedLoading && !haveFirstSchemasFinishedLoading;
+    const newState =
+        (isLoadingSchemas && ext.languageServerState === LanguageServerState.Running)
+            ? LanguageServerState.LoadingSchemas
+            : (!isLoadingSchemas && ext.languageServerState === LanguageServerState.LoadingSchemas)
+                ? LanguageServerState.Running
+                : ext.languageServerState;
+    ext.languageServerState = newState;
+
+    if (newState === LanguageServerState.LoadingSchemas) {
+        showLoadingSchemasProgress();
+    }
+}
+
+function showLoadingSchemasProgress(): void {
+    if (!isShowingLoadingSchemasProgress) {
+        isShowingLoadingSchemasProgress = true;
+        window.withProgress(
+            {
+                location: ProgressLocation.Notification,
+                title: `Loading ARM schemas`
+            },
+            async () => delayWhileSync(500, () => ext.languageServerState === LanguageServerState.LoadingSchemas)
+        ).then(() => {
+            isShowingLoadingSchemasProgress = false;
+        });
+    }
+}
+
+export async function waitForLanguageServerAvailable(): Promise<void> {
+    const currentState = ext.languageServerState;
+    switch (currentState) {
+        case LanguageServerState.Stopped:
+        case LanguageServerState.NotStarted:
+        case LanguageServerState.Failed:
+            startArmLanguageServerInBackground();
+            break;
+
+        case LanguageServerState.Running:
+            return;
+
+        case LanguageServerState.LoadingSchemas:
+        case LanguageServerState.Starting:
+            break;
+
+        default:
+            assertNever(currentState);
+    }
+
+    // tslint:disable-next-line: no-constant-condition
+    while (true) {
+        switch (ext.languageServerState) {
+            case LanguageServerState.Failed:
+                throw new Error(`Language server failed on start-up: ${ext.languageServerStartupError}`);
+            case LanguageServerState.NotStarted:
+            case LanguageServerState.Starting:
+            case LanguageServerState.LoadingSchemas:
+                await delay(100);
+                break;
+            case LanguageServerState.Running:
+                await delay(1000); // Give vscode time to notice the new formatter available (I don't know of a way to detect this)
+
+                ext.outputChannel.appendLine("Language server is ready.");
+                assert(ext.languageServerClient);
+                return;
+
+            case LanguageServerState.Stopped:
+                throw new Error('Language server has stopped');
+            default:
+                assertNever(ext.languageServerState);
+        }
+    }
+}
+
+function isApiVersion(s: string): boolean {
+    return /^[0-9]{4}-[0-9]{2}-[0-9]{2}(-[0-9a-zA-Z]+)?$/.test(s);
 }

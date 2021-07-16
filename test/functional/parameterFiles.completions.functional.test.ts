@@ -39,7 +39,7 @@ const defaultTemplate = {
 
 suite("Functional parameter file completions", () => {
 
-    // CONSIDER: Could use executeCompletionItemProvider instead
+    // CONSIDER: Could use vscode.executeCompletionItemProvider commnd instead
     function createCompletionsFunctionalTest(
         testName: string,
         params: string | Partial<IDeploymentParametersFile>,
@@ -57,9 +57,9 @@ suite("Functional parameter file completions", () => {
 
                 // Create template/params files
                 if (template) {
-                    templateFile = new TempFile(stringify(template));
+                    templateFile = TempFile.fromContents(stringify(template));
                 }
-                let paramsFile = new TempFile(unmarkedText);
+                let paramsFile = TempFile.fromContents(unmarkedText);
 
                 // Map template to params
                 if (templateFile) {

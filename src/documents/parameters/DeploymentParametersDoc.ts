@@ -8,11 +8,11 @@ import { INamedDefinition } from '../../language/INamedDefinition';
 import { Issue } from '../../language/Issue';
 import * as Json from "../../language/json/JSON";
 import { ReferenceList } from "../../language/ReferenceList";
-import { isParametersSchema } from "../../schemas";
 import { CachedValue } from '../../util/CachedValue';
 import { expectTemplateDocument, expectTemplateDocumentOrUndefined } from '../../util/expectDocument';
 import { DeploymentDocument, ResolvableCodeLens } from "../DeploymentDocument";
 import { ParametersPositionContext } from "../positionContexts/ParametersPositionContext";
+import { isParametersSchema } from "../templates/schemas";
 import { IParameterValuesSource } from './IParameterValuesSource';
 import { IParameterValuesSourceProvider } from './IParameterValuesSourceProvider';
 import { ParameterValueDefinition } from "./ParameterValueDefinition";
@@ -33,15 +33,15 @@ export class DeploymentParametersDoc extends DeploymentDocument {
      * @param _documentText The string text of the document.
      * @param _documentUri A unique identifier for this document. Usually this will be a URI to the document.
      */
-    constructor(documentText: string, documentUri: Uri) {
-        super(documentText, documentUri);
+    constructor(documentText: string, documentUri: Uri, public readonly documentVersion: number) {
+        super(documentText, documentUri, documentVersion);
     }
 
     public hasParametersSchema(): boolean {
         return isParametersSchema(this.schemaUri);
     }
 
-    public get parameterValuesSource(): IParameterValuesSource {
+    public get topLevelParameterValuesSource(): IParameterValuesSource {
         return this._parameterValuesSource.getOrCacheValue(() => {
             return new ParameterValuesSourceFromJsonObject(this, this.parametersProperty, this.topLevelValue);
         });
@@ -116,20 +116,26 @@ export class DeploymentParametersDoc extends DeploymentDocument {
         context: CodeActionContext
     ): (Command | CodeAction)[] {
         const template = expectTemplateDocumentOrUndefined(associatedDocument);
-        return getParameterValuesCodeActions(
-            this.parameterValuesSource,
-            template?.topLevelScope,
-            range,
-            context
-        );
+        if (template) {
+            return getParameterValuesCodeActions(
+                this.topLevelParameterValuesSource,
+                template.topLevelScope.parameterDefinitionsSource,
+                undefined,
+                range,
+                context
+            );
+        }
+
+        return [];
     }
+
     public getErrorsCore(associatedDocument: DeploymentDocument | undefined): Issue[] {
         if (!associatedDocument) {
             return [];
         }
 
         const template = expectTemplateDocument(associatedDocument);
-        return getMissingParameterErrors(this.parameterValuesSource, template.topLevelScope);
+        return getMissingParameterErrors(this.topLevelParameterValuesSource, template.topLevelScope.parameterDefinitionsSource);
     }
 
     public getWarnings(): Issue[] {

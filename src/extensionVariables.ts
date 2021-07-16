@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
+import * as path from "path";
 import * as vscode from "vscode";
 import { IAzExtOutputChannel, IAzureUserInput } from "vscode-azureextensionui";
 import { LanguageClient } from "vscode-languageclient";
 import { configPrefix, isWebpack } from "./constants";
 import { DeploymentFileMapping } from "./documents/parameters/DeploymentFileMapping";
+import { IProvideOpenedDocuments } from './IProvideOpenedDocuments';
 import { LanguageServerState } from "./languageclient/startArmLanguageServer";
 import { ISnippetManager } from './snippets/ISnippetManager';
 import { CompletionsSpy } from "./util/CompletionsSpy";
@@ -23,10 +25,13 @@ import { JsonOutlineProvider } from "./vscodeIntegration/Treeview";
 // tslint:disable-next-line: class-name
 class ExtensionVariables {
     public readonly extensionId: string = "msazurermtools.azurerm-vscode-tools";
+
     private _context: InitializeBeforeUse<vscode.ExtensionContext> = new InitializeBeforeUse<vscode.ExtensionContext>();
     private _jsonOutlineProvider: InitializeBeforeUse<JsonOutlineProvider> = new InitializeBeforeUse<JsonOutlineProvider>();
     private _outputChannel: InitializeBeforeUse<IAzExtOutputChannel> = new InitializeBeforeUse<IAzExtOutputChannel>();
     private _ui: InitializeBeforeUse<IAzureUserInput> = new InitializeBeforeUse<IAzureUserInput>();
+    private _languageServerState: LanguageServerState = LanguageServerState.NotStarted;
+    private _languageServerStateEmitter: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
 
     public set context(context: vscode.ExtensionContext) {
         this._context.value = context;
@@ -57,13 +62,29 @@ class ExtensionVariables {
     }
 
     public EOL: string = os.EOL;
+    public pathSeparator: string = path.sep;
+    public provideOpenedDocuments: IProvideOpenedDocuments | undefined;
 
     public readonly ignoreBundle: boolean = !isWebpack;
 
     public languageServerClient: LanguageClient | undefined;
-    public languageServerState: LanguageServerState = LanguageServerState.NotStarted;
+    public set languageServerState(value: LanguageServerState) {
+        if (this._languageServerState !== value) {
+            this._languageServerState = value;
+            this._languageServerStateEmitter.fire();
+        }
+    }
+    public get languageServerState(): LanguageServerState {
+        return this._languageServerState;
+    }
+    public get languageServerStateChanged(): vscode.Event<void> {
+        return this._languageServerStateEmitter.event;
+    }
+    public languageServerStartupError: string | undefined;
 
     // Suite support - lets us know when diagnostics have been completely published for a file
+    // tslint:disable-next-line: no-suspicious-comment
+    // TODO: Switch to using notifications?
     public addCompletedDiagnostic: boolean = false;
 
     // Note: We can't effectively change the configuration for all actions right now because

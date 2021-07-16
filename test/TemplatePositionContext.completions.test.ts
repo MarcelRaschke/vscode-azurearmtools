@@ -32,11 +32,11 @@ suite("TemplatePositionContext.completions", () => {
                     let keepInClosureForEasierDebugging = testName;
                     keepInClosureForEasierDebugging = keepInClosureForEasierDebugging;
 
-                    const dt = new DeploymentTemplateDoc(documentText, fakeId);
+                    const dt = new DeploymentTemplateDoc(documentText, fakeId, 0);
                     const pc: TemplatePositionContext = dt.getContextFromDocumentCharacterIndex(index, undefined);
 
-                    let completionItems: Completion.Item[] = (await pc.getCompletionItems(undefined)).items;
-                    const completionItems2: Completion.Item[] = (await pc.getCompletionItems(undefined)).items;
+                    let completionItems: Completion.Item[] = (await pc.getCompletionItems(undefined, 2)).items;
+                    const completionItems2: Completion.Item[] = (await pc.getCompletionItems(undefined, 2)).items;
                     assert.deepStrictEqual(completionItems, completionItems2, "Got different results");
 
                     compareTestableCompletionItems(completionItems, expectedCompletionItems);
@@ -580,7 +580,7 @@ suite("TemplatePositionContext.completions", () => {
             suite("Variable value with array nested in object", () => {
                 test("variables('v1').a.b.c", async () => {
                     // Shouldn't throw - see https://github.com/microsoft/vscode-azurearmtools/issues/441
-                    await parseTemplate(
+                    parseTemplate(
                         {
                             "variables": {
                                 "v1": {
@@ -625,14 +625,14 @@ suite("TemplatePositionContext.completions", () => {
 
                         templateWithReplacement = stringify(templateWithReplacement);
                         const template = templateWithReplacement.replace(/TESTEXPRESSION/, expression);
-                        const { dt, markers: { cursor, replstart } } = await parseTemplateWithMarkers(template);
+                        const { dt, markers: { cursor, replstart } } = parseTemplateWithMarkers(template);
                         // tslint:disable-next-line: strict-boolean-expressions
                         assert(!!replstart!, "Didn't find <!replstart!> in test expression");
                         // tslint:disable-next-line: strict-boolean-expressions
                         assert(!!cursor!, "Didn't find <!cursor!> in test expression");
                         const pc: TemplatePositionContext = dt.getContextFromDocumentCharacterIndex(cursor.index, undefined);
 
-                        let completionItems: Completion.Item[] = (await pc.getCompletionItems(undefined)).items;
+                        let completionItems: Completion.Item[] = (await pc.getCompletionItems(undefined, 2)).items;
                         if (!expectedExample) {
                             assert.equal(completionItems.length, 0, "Expected 0 completion items");
                             return;

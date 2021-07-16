@@ -26,6 +26,7 @@ suite("Parameter file completions", () => {
         template: string | Partial<IDeploymentTemplate> | undefined,
         options: {
             cursorIndex?: number;
+            tabSize?: number;
         },
         // Can either be an array of completion names, or an array of
         //   [completion name, insert text] tuples
@@ -33,9 +34,9 @@ suite("Parameter file completions", () => {
     ): void {
         const fullName = isNullOrUndefined(options.cursorIndex) ? testName : `${testName}, index=${options.cursorIndex}`;
         test(fullName, async () => {
-            let dt: DeploymentTemplateDoc | undefined = template ? await parseTemplate(template) : undefined;
+            let dt: DeploymentTemplateDoc | undefined = template ? parseTemplate(template) : undefined;
 
-            const { dp, markers: { cursor } } = await parseParametersWithMarkers(params);
+            const { dp, markers: { cursor } } = parseParametersWithMarkers(params);
             // tslint:disable-next-line: strict-boolean-expressions
             const cursorIndex = !isNullOrUndefined(options.cursorIndex) ? options.cursorIndex : cursor?.index;
             if (isNullOrUndefined(cursorIndex)) {
@@ -43,7 +44,7 @@ suite("Parameter file completions", () => {
             }
 
             const pc = dp.getContextFromDocumentCharacterIndex(cursorIndex, dt);
-            const completions = await pc.getCompletionItems("");
+            const completions = await pc.getCompletionItems("", options.tabSize ?? 4);
 
             const completionNames = completions.items.map(c => c.label).sort();
             const completionInserts = completions.items.map(c => c.insertText).sort();

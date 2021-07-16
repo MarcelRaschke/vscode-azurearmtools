@@ -8,9 +8,10 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import { Uri } from "vscode";
-import { DeploymentFileMapping, isWin32, normalizePath } from "../extension.bundle";
+import { DeploymentFileMapping, normalizeFilePath } from "../extension.bundle";
 import { TestConfiguration } from "./support/TestConfiguration";
 import { testOnWin32 } from './support/testOnPlatform';
+import { isWin32 } from './testConstants';
 
 suite("DeploymentFileMapping", () => {
     const root = isWin32 ? "c:\\" : "/";
@@ -125,8 +126,8 @@ suite("DeploymentFileMapping", () => {
         obj[t3.fsPath] = p3.fsPath;
 
         // Look-up on any template version returns p2
-        const normalizedTemplate = normalizePath(t1.fsPath);
-        assert(normalizedTemplate === normalizePath(t2.fsPath) && normalizedTemplate === normalizePath(t3.fsPath));
+        const normalizedTemplate = normalizeFilePath(t1.fsPath);
+        assert(normalizedTemplate === normalizeFilePath(t2.fsPath) && normalizedTemplate === normalizeFilePath(t3.fsPath));
         assert.equal(mapping.getParameterFile(t1)?.fsPath, p3.fsPath);
         assert.equal(mapping.getParameterFile(t2)?.fsPath, p3.fsPath);
         assert.equal(mapping.getParameterFile(t3)?.fsPath, p3.fsPath);

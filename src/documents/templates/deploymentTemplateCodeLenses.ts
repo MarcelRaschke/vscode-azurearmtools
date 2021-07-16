@@ -15,7 +15,8 @@ import { IParameterDefinition } from '../parameters/IParameterDefinition';
 import { IParameterValuesSource } from '../parameters/IParameterValuesSource';
 import { IParameterValuesSourceProvider } from '../parameters/IParameterValuesSourceProvider';
 import { getRelativeParameterFilePath } from "../parameters/parameterFilePaths";
-import { TemplateScope, TemplateScopeKind } from './scopes/TemplateScope';
+import { IFullValidationStatus } from "./linkedTemplates/linkedTemplates";
+import { TemplateScope } from './scopes/TemplateScope';
 import { TopLevelTemplateScope } from './scopes/templateScopes';
 
 /**
@@ -55,7 +56,11 @@ export class SelectParameterFileCodeLens extends ResolvableCodeLens {
     public constructor(
         scope: TemplateScope,
         span: Span,
-        private parameterFileUri: Uri | undefined
+        private parameterFileUri: Uri | undefined,
+        private _options: {
+            isForLinkedOrNestedTemplate?: true;
+            fullValidationStatus: IFullValidationStatus | undefined;
+        }
     ) {
         super(scope, span);
     }
@@ -65,7 +70,12 @@ export class SelectParameterFileCodeLens extends ResolvableCodeLens {
         if (this.parameterFileUri) {
             title = `Change...`;
         } else {
-            title = "Select or create a parameter file to enable full validation...";
+            title =
+                this._options.fullValidationStatus?.allParametersHaveDefaults ?
+                    "Select or create a parameter file..." :
+                    this._options?.isForLinkedOrNestedTemplate ?
+                        `$(warning) Full template validation off. Add parameter file or top-level parameter defaults to enable.` :
+                        "Select or create a parameter file to enable full validation...";
         }
 
         this.command = {
@@ -125,7 +135,7 @@ export class ParameterDefinitionCodeLens extends ResolvableCodeLens {
             } else if (hasDefaultValue) {
                 title = "Using default value";
             } else {
-                title = "$(warning) No value found";
+                title = "$(warning) No value found - click here to enter a value";
             }
         }
 
@@ -170,59 +180,6 @@ export class ParameterDefinitionCodeLens extends ResolvableCodeLens {
             command: "azurerm-vscode-tools.codeLens.gotoParameterValue",
             arguments: [args]
         };
-        return true;
-    }
-}
-
-export class NestedTemplateCodeLen extends ResolvableCodeLens {
-    private constructor(
-        scope: TemplateScope,
-        span: Span,
-        title: string
-    ) {
-        super(scope, span);
-        this.command = {
-            title: title,
-            command: ''
-        };
-    }
-
-    public static create(scope: TemplateScope, span: Span): NestedTemplateCodeLen | undefined {
-        switch (scope.scopeKind) {
-            case TemplateScopeKind.NestedDeploymentWithInnerScope:
-                return new NestedTemplateCodeLen(scope, span, "Nested template with inner scope");
-            case TemplateScopeKind.NestedDeploymentWithOuterScope:
-                return new NestedTemplateCodeLen(scope, span, "Nested template with outer scope");
-            default:
-                return undefined;
-        }
-    }
-
-    public async resolve(): Promise<boolean> {
-        // Nothing else to do
-        return true;
-    }
-}
-
-export class LinkedTemplateCodeLens extends ResolvableCodeLens {
-    private constructor(
-        scope: TemplateScope,
-        span: Span,
-        title: string
-    ) {
-        super(scope, span);
-        this.command = {
-            title: title,
-            command: ''
-        };
-    }
-
-    public static create(scope: TemplateScope, span: Span): LinkedTemplateCodeLens {
-        return new LinkedTemplateCodeLens(scope, span, "Linked template");
-    }
-
-    public async resolve(): Promise<boolean> {
-        // Nothing else to do
         return true;
     }
 }

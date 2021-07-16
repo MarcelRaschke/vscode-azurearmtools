@@ -9,10 +9,12 @@ import * as assert from "assert";
 import { Position, Range, Uri } from "vscode";
 import { IGotoParameterValueArgs, IParameterValuesSource, IParameterValuesSourceProvider, ParameterDefinitionCodeLens, ParentOrChildCodeLens, ShowCurrentParameterFileCodeLens } from "../extension.bundle";
 import { IDeploymentTemplate, IPartialDeploymentTemplate } from "./support/diagnostics";
+import { ensureLanguageServerAvailable } from "./support/ensureLanguageServerAvailable";
 import { parseParametersWithMarkers, parseTemplate } from "./support/parseTemplate";
 import { rangeToString } from "./support/rangeToString";
 import { sortBy } from "./support/sortBy";
 import { stringify } from "./support/stringify";
+import { testWithLanguageServer } from "./support/testWithLanguageServer";
 
 suite("DeploymentTemplate code lenses", () => {
     class FakeParameterValuesSourceProvider implements IParameterValuesSourceProvider {
@@ -122,13 +124,13 @@ suite("DeploymentTemplate code lenses", () => {
     suite("parameters section code lens", () => {
         suite("if no parameter file then", () => {
             test("expect only a single parameters section code lens", async () => {
-                const dt = await parseTemplate(template1);
+                const dt = parseTemplate(template1);
                 const lenses = dt.getCodeLenses(undefined);
                 assert.equal(lenses.length, 1, "Expecting only a code lens for the parameters section itself");
             });
 
             test("code lens should show command to select/create one", async () => {
-                const dt = await parseTemplate(template1);
+                const dt = parseTemplate(template1);
                 const lenses = dt.getCodeLenses(undefined);
                 for (const lens of lenses) {
                     const result = await lens.resolve();
@@ -145,9 +147,9 @@ suite("DeploymentTemplate code lenses", () => {
 
         suite("if there is a parameter file then", () => {
             test("parameter section code lens should show command to open current parameter file and one to change the selection", async () => {
-                const dt = await parseTemplate(template1);
-                const { dp } = await parseParametersWithMarkers({});
-                const lenses = dt.getCodeLenses(new FakeParameterValuesSourceProvider(dp.documentUri, dp.parameterValuesSource));
+                const dt = parseTemplate(template1);
+                const { dp } = parseParametersWithMarkers({});
+                const lenses = dt.getCodeLenses(new FakeParameterValuesSourceProvider(dp.documentUri, dp.topLevelParameterValuesSource));
                 assert.equal(lenses.length, 2 + dt.topLevelScope.parameterDefinitions.length);
                 for (const lens of lenses) {
                     const result = await lens.resolve();
@@ -175,7 +177,7 @@ suite("DeploymentTemplate code lenses", () => {
 
     suite("parameter definition code lenses", () => {
 
-        suite("with top-level parameter definitions and values in a parameter file", () => {
+        suite("with top-level parameter definitions and values in a parameter file", async () => {
             function createParamLensTest(topLevelParamName: string, valueInParamFile: { value?: string; reference?: string } | undefined, expectedTitle: string): void {
                 const testName = valueInParamFile === undefined ?
                     `${topLevelParamName} with no value in param file` :
@@ -183,10 +185,10 @@ suite("DeploymentTemplate code lenses", () => {
                 test(testName, async () => {
                     let a = testName;
                     a = a;
-                    const dt = await parseTemplate(template1);
+                    const dt = parseTemplate(template1);
                     const param = dt.topLevelScope.getParameterDefinition(topLevelParamName);
                     assert(!!param);
-                    const { dp } = await parseParametersWithMarkers(
+                    const { dp } = parseParametersWithMarkers(
                         valueInParamFile === undefined ? {
                             "parameters": {}
                         } : valueInParamFile.value ? `{
@@ -202,7 +204,7 @@ suite("DeploymentTemplate code lenses", () => {
                                 }
                             }
                         }`);
-                    const lenses = dt.getCodeLenses(new FakeParameterValuesSourceProvider(dp.documentUri, dp.parameterValuesSource))
+                    const lenses = dt.getCodeLenses(new FakeParameterValuesSourceProvider(dp.documentUri, dp.topLevelParameterValuesSource))
                         .filter(l => l instanceof ParameterDefinitionCodeLens)
                         .map(l => <ParameterDefinitionCodeLens>l);
                     assert.equal(lenses.length, dt.topLevelScope.parameterDefinitions.length);
@@ -228,11 +230,11 @@ suite("DeploymentTemplate code lenses", () => {
             createParamLensTest('requiredInt', { value: '123' }, 'Value: 123');
             createParamLensTest('requiredInt', { value: '-123' }, 'Value: -123');
             createParamLensTest('optionalInt', undefined, 'Using default value');
-            createParamLensTest('requiredInt', undefined, '$(warning) No value found');
+            createParamLensTest('requiredInt', undefined, '$(warning) No value found - click here to enter a value');
 
             createParamLensTest('requiredString', { value: '"def"' }, 'Value: "def"');
             createParamLensTest('optionalString', undefined, 'Using default value');
-            createParamLensTest('requiredString', undefined, '$(warning) No value found');
+            createParamLensTest('requiredString', undefined, '$(warning) No value found - click here to enter a value');
 
             // Value too long
             createParamLensTest(
@@ -281,15 +283,21 @@ suite("DeploymentTemplate code lenses", () => {
         });
 
         suite("parameters for nested inner-scoped template", () => {
-            function createCodeLensTest(testName: string, template: IPartialDeploymentTemplate, expected: string[]): void {
-                test(testName, async () => {
+            function createCodeLensTest(testName: string, template: IPartialDeploymentTemplate, expected: (string | RegExp)[]): void {
+                testWithLanguageServer(testName, async () => {
                     testName = testName;
-                    const dt = await parseTemplate(template);
+                    const dt = parseTemplate(template);
+
+                    await ensureLanguageServerAvailable();
 
                     let lenses = dt.getCodeLenses(undefined).filter(cl => !(cl instanceof ParentOrChildCodeLens));
                     for (const lens of lenses) {
                         const result = await lens.resolve();
                         assert(result);
+
+                        if (lens.command) {
+                            lens.command.title = lens.command.title.replace(" - loading schemas...", "");
+                        }
                     }
 
                     lenses = sortBy(lenses, l => l.range);
@@ -355,12 +363,13 @@ suite("DeploymentTemplate code lenses", () => {
                     ]
                 },
                 [
-                    "TopLevel: \"Select or create a parameter file to enable full validation...\" (azurerm-vscode-tools.selectParameterFile) at [0,0-0,0]",
-                    "NestedDeploymentWithInnerScope: \"Nested template with inner scope\" () at [21,20-46,9]",
-                    "NestedDeploymentWithInnerScope: \"Using default value\" (azurerm-vscode-tools.codeLens.gotoParameterValue) at [25,12-25,16]",
-                    "NestedDeploymentWithInnerScope: \"Value: \"p2 value\"\" (azurerm-vscode-tools.codeLens.gotoParameterValue) at [29,12-29,16]",
-                    "NestedDeploymentWithInnerScope: \"Value: \"[add(1, 2)]\"\" (azurerm-vscode-tools.codeLens.gotoParameterValue) at [32,12-32,16]",
-                    "NestedDeploymentWithInnerScope: \"$(warning) No value found\" (azurerm-vscode-tools.codeLens.gotoParameterValue) at [35,12-35,16]",
+                    "TopLevel: \"Select or create a parameter file to enable full validation...\" (azurerm-vscode-tools.selectParameterFile) at [1,1-1,1]",
+                    "NestedDeploymentWithInnerScope: \"Nested template with inner scope\" () at [22,21-47,10]",
+                    "NestedDeploymentWithInnerScope: \"$(warning) Full template validation off. Add parameter file or top-level parameter defaults to enable.\" (azurerm-vscode-tools.selectParameterFile) at [22,21-47,10]",
+                    "NestedDeploymentWithInnerScope: \"Using default value\" (azurerm-vscode-tools.codeLens.gotoParameterValue) at [26,13-26,17]",
+                    "NestedDeploymentWithInnerScope: \"Value: \"p2 value\"\" (azurerm-vscode-tools.codeLens.gotoParameterValue) at [30,13-30,17]",
+                    "NestedDeploymentWithInnerScope: \"Value: \"[add(1, 2)]\"\" (azurerm-vscode-tools.codeLens.gotoParameterValue) at [33,13-33,17]",
+                    "NestedDeploymentWithInnerScope: \"$(warning) No value found - click here to enter a value\" (azurerm-vscode-tools.codeLens.gotoParameterValue) at [36,13-36,17]",
                 ]
             );
 
@@ -411,12 +420,12 @@ suite("DeploymentTemplate code lenses", () => {
                     ]
                 },
                 [
-                    "TopLevel: \"Select or create a parameter file to enable full validation...\" (azurerm-vscode-tools.selectParameterFile) at [0,0-0,0]",
-                    "NestedDeploymentWithInnerScope: \"Nested template with inner scope\" () at [13,20-38,9]",
-                    "NestedDeploymentWithInnerScope: \"Using default value\" (azurerm-vscode-tools.codeLens.gotoParameterValue) at [17,12-17,16]",
-                    "NestedDeploymentWithInnerScope: \"$(warning) No value found\" (azurerm-vscode-tools.codeLens.gotoParameterValue) at [21,12-21,16]",
-                    "NestedDeploymentWithInnerScope: \"$(warning) No value found\" (azurerm-vscode-tools.codeLens.gotoParameterValue) at [24,12-24,16]",
-                    "NestedDeploymentWithInnerScope: \"$(warning) No value found\" (azurerm-vscode-tools.codeLens.gotoParameterValue) at [27,12-27,16]",
+                    "TopLevel: \"Select or create a parameter file to enable full validation...\" (azurerm-vscode-tools.selectParameterFile) at [1,1-1,1]",
+                    "NestedDeploymentWithInnerScope: \"Nested template with inner scope\" () at [14,21-39,10]",
+                    "NestedDeploymentWithInnerScope: \"$(warning) Full template validation off. Add parameter file or top-level parameter defaults to enable.\" (azurerm-vscode-tools.selectParameterFile) at [14,21-39,10]", "NestedDeploymentWithInnerScope: \"Using default value\" (azurerm-vscode-tools.codeLens.gotoParameterValue) at [18,13-18,17]",
+                    "NestedDeploymentWithInnerScope: \"$(warning) No value found - click here to enter a value\" (azurerm-vscode-tools.codeLens.gotoParameterValue) at [22,13-22,17]",
+                    "NestedDeploymentWithInnerScope: \"$(warning) No value found - click here to enter a value\" (azurerm-vscode-tools.codeLens.gotoParameterValue) at [25,13-25,17]",
+                    "NestedDeploymentWithInnerScope: \"$(warning) No value found - click here to enter a value\" (azurerm-vscode-tools.codeLens.gotoParameterValue) at [28,13-28,17]",
                 ]
             );
 

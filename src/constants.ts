@@ -15,6 +15,13 @@ export const basePath = path.join(__dirname, isWebpack ? "" : "..", "..");
 export const assetsPath = path.join(basePath, "assets");
 export const iconsPath = path.join(basePath, "icons");
 
+export namespace documentSchemes {
+    export const file: string = 'file'; // Locally-saved files
+    export const untitled: string = 'untitled';  // unsaved files
+    export const linkedTemplate = 'linked-template'; // For our ITextDocumentContentProvider that serves HTTP documents
+    export const git = 'git';
+}
+
 export const languageServerName = 'ARM Template Language Server';
 export const languageFriendlyName = 'Azure Resource Manager Template';
 export const armTemplateLanguageId = 'arm-template';
@@ -24,6 +31,7 @@ export const outputChannelName = extensionName;
 
 // String that shows up in our errors as the source in parentheses
 export const expressionsDiagnosticsSource = "arm-template (expressions)";
+export const backendValidationDiagnosticsSource = 'arm-template (validation)';
 
 // Source string for errors related to the language server starting up or failing
 export const languageServerStateSource = "arm-template";
@@ -51,6 +59,28 @@ export namespace configKeys {
     export const codeLensForResourceParentsAndChildren = 'codelens.resourceChildren';
 }
 
+export namespace notifications {
+    export const requestOpenLinkedTemplate = 'arm-template/requestOpenLinkedTemplate';
+    export const notifyTemplateGraph = 'arm-template/notifyTemplateGraph';
+    export const schemaValidationNotification = 'arm-template/schemaValidation';
+
+    export interface ISchemaValidationNotificationArgs {
+        uri: string;
+        completed: boolean;
+    }
+
+    export namespace Diagnostics {
+        export const codeAnalysisStarting = 'arm-template/diag-codeAnalysisStarting';
+
+        export interface ICodeAnalysisStartingArgs {
+            uri: string;
+            docVersion: number;
+            codeAnalysisVersion: number;
+
+        }
+    }
+}
+
 export namespace globalStateKeys {
     // Set of files to not ask about using the newest schema
     export const dontAskAboutSchemaFiles = 'dontAskAboutSchemaFiles';
@@ -61,6 +91,10 @@ export namespace globalStateKeys {
         export const neverShowSurvey = 'neverShowSurvey';
         export const surveyPostponedUntilTime = 'surveyPostponedUntilTime';
     }
+
+    export namespace messages {
+        export const bicepMessagePostponedUntilTime = 'bicepMessagePostponedUntilTime';
+    }
 }
 
 // For testing: We create a diagnostic with this message during testing to indicate when all (expression) diagnostics have been calculated
@@ -69,6 +103,7 @@ export const expressionsDiagnosticsCompletionMessage = diagnosticsCompletePrefix
 
 export namespace templateKeys {
     // Top-level
+    export const schema = '$schema';
     export const parameters = 'parameters';
     export const resources = 'resources';
     export const variables = 'variables';
@@ -99,8 +134,12 @@ export namespace templateKeys {
 
     // Linked templates
     export const linkedDeploymentTemplateLink = 'templateLink';
+    export const linkedDeploymentTemplateLinkUri = 'uri';
+    export const linkedDeploymentTemplateLinkRelativePath = 'relativePath';
 
     // User functions
     export const userFunctionNamespace = 'namespace';
     export const userFunctionMembers = 'members';
 }
+
+export const deploymentsResourceTypeLC: string = 'microsoft.resources/deployments';

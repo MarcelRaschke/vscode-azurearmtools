@@ -15,7 +15,7 @@ suite("ResourceInfo", () => {
     suite("split names", () => {
         function createSplitNameTest(nameAsJsonString: string, expected: string[]): void {
             test(nameAsJsonString, async () => {
-                const dt = await parseTemplate({
+                const dt = parseTemplate({
                     resources: [
                         {
                             name: nameAsJsonString,
@@ -24,7 +24,7 @@ suite("ResourceInfo", () => {
                     ]
                 });
                 // tslint:disable-next-line: no-non-null-assertion
-                const info = getResourceInfo(dt.topLevelScope.rootObject!.getPropertyValue('resources')!.asArrayValue!.elements[0]!.asObjectValue!)!;
+                const info = getResourceInfo(dt.topLevelScope.rootObject!.getPropertyValue('resources')!.asArrayValue!.elements[0].asObjectValue!)!;
                 const actual = info.nameSegmentExpressions;
                 assert.deepStrictEqual(actual, expected);
 
@@ -45,7 +45,7 @@ suite("ResourceInfo", () => {
     suite("split types", () => {
         function createSplitTypeTest(typeAsJsonString: string, expected: string[]): void {
             test(typeAsJsonString, async () => {
-                const dt = await parseTemplate({
+                const dt = parseTemplate({
                     resources: [
                         {
                             name: "name",
@@ -54,8 +54,9 @@ suite("ResourceInfo", () => {
                     ]
                 });
                 // tslint:disable-next-line: no-non-null-assertion
-                const info = getResourceInfo(dt.topLevelScope.rootObject!.getPropertyValue('resources')!.asArrayValue!.elements[0]!.asObjectValue!)!;
-                const actual = info.typeSegmentExpressions;
+                const info = getResourceInfo(dt.topLevelScope.rootObject!.getPropertyValue('resources')!.asArrayValue!.elements[0].asObjectValue!);
+                // tslint:disable-next-line: no-non-null-assertion
+                const actual = info!.typeSegmentExpressions;
                 assert.deepStrictEqual(actual, expected);
 
             });
@@ -548,7 +549,7 @@ suite("ResourceInfo", () => {
                 ]
             };
 
-            const dt = await parseTemplate(template);
+            const dt = parseTemplate(template);
             const infos = getResourcesInfo({ scope: dt.topLevelScope, recognizeDecoupledChildren: false });
 
             const actual = infos.map(info => ({

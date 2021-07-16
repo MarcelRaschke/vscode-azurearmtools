@@ -82,10 +82,10 @@ export function createExpressionCompletionsTestEx(
 
             template = stringify(template).replace(contextFind, expressionWithCursorMarker);
 
-            const { dt, markers: { cursor } } = await parseTemplateWithMarkers(template);
+            const { dt, markers: { cursor } } = parseTemplateWithMarkers(template);
             assert(cursor, "Didn't find <!cursor!> marker in text");
             const pc = dt.getContextFromDocumentCharacterIndex(cursor.index, undefined);
-            const completions = await pc.getCompletionItems(options?.triggerCharacter);
+            const completions = await pc.getCompletionItems(options?.triggerCharacter, 4);
 
             // Remove completions to ignore
             const completionItems = completions.items.filter(c => !(options?.ignoreCompletionNames ?? []).includes(c.label));

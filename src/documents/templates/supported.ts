@@ -2,14 +2,11 @@
 // Copyright (c) Microsoft Corporation.  All rights reserved.
 // ----------------------------------------------------------------------------
 
-import { Position, Range, TextDocument, workspace } from "vscode";
-import { armTemplateLanguageId, configKeys, configPrefix } from "../../constants";
-import { containsArmSchema, containsParametersSchema } from "../../schemas";
-
-export namespace documentSchemes {
-    export const file: string = 'file'; // Locally-saved files
-    export const untitled: string = 'untitled';  // unsaved files
-}
+import * as path from 'path';
+import { languages, Position, Range, TextDocument, workspace } from "vscode";
+import { IActionContext } from "vscode-azureextensionui";
+import { armTemplateLanguageId, configKeys, configPrefix, documentSchemes } from "../../constants";
+import { containsArmSchema, containsParametersSchema } from "./schemas";
 
 export const templateDocumentSelector = [
     { language: armTemplateLanguageId, scheme: documentSchemes.file },
@@ -42,12 +39,12 @@ function isJsonOrJsoncLangId(textDocument: TextDocument): boolean {
 // but also JSON/JSONC so we can check them for the ARM deployment and parameters schemas
 function shouldWatchDocument(textDocument: TextDocument): boolean {
     if (
-        textDocument.uri.scheme !== 'file'
-        && textDocument.uri.scheme !== 'untitled' // unsaved files
+        textDocument.uri.scheme !== documentSchemes.file
+        && textDocument.uri.scheme !== documentSchemes.untitled // unsaved files
         // 'git' is the scheme that is used for documents in the left-hand side of the git 'changes'
         // view.  If we don't switch to arm-template for it, the JSON language server will kick in
         // and show false positive errors
-        && textDocument.uri.scheme !== 'git'
+        && textDocument.uri.scheme !== documentSchemes.git
     ) {
         return false;
     }
@@ -101,4 +98,13 @@ export function mightBeDeploymentParameters(textDocument: TextDocument): boolean
     }
 
     return false;
+}
+
+export function setLangIdToArm(document: TextDocument, actionContext: IActionContext): void {
+    languages.setTextDocumentLanguage(document, armTemplateLanguageId);
+
+    actionContext.telemetry.properties.switchedToArm = 'true';
+    actionContext.telemetry.properties.docLangId = document.languageId;
+    actionContext.telemetry.properties.docExtension = path.extname(document.fileName);
+    actionContext.telemetry.suppressIfSuccessful = false;
 }

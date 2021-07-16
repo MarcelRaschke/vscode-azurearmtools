@@ -7,6 +7,7 @@
 import * as path from 'path';
 import { testDiagnosticsFromFile } from "./support/diagnostics";
 import { testWithLanguageServer } from './support/testWithLanguageServer';
+import { testMessages } from './testConstants';
 
 // These are from the templates at https://github.com/bmoore-msft/arm-template-language-samples which show problems with the 0.6.0 version of the extension
 
@@ -37,11 +38,6 @@ suite("arm-template-language-samples", () => {
             [
                 `Warning: Please use https for the schema URL (arm-template (schema))`
             ]);
-        testSample("subscription-level.json", [
-            // TODO: top-level metadata
-            // https://github.com/microsoft/vscode-azurearmtools/issues/677
-            `Warning: Property name is not allowed by the schema (arm-template (schema))`
-        ]);
         testSample("udf-xmas-tree.json", [
             `Error: Template validation failed: The template function 'storageUri' at line '15' and column '21' is not valid. These function calls are not supported in a function definition: 'reference'. Please see https://aka.ms/arm-template/#functions for usage details. (arm-template (validation))`
         ]);
@@ -57,7 +53,9 @@ suite("arm-template-language-samples", () => {
         // Nested templates
         // https://github.com/microsoft/vscode-azurearmtools/issues/484
         testSample("nested-deployment-scoping.json");
-        testSample("azuredeploy.inline.json");
+        testSample("azuredeploy.inline.json", [
+            `${testMessages.nestedTemplateNoValidation("fetchSecret")} (arm-template (expressions)) [19,21-19,34]`
+        ]);
     });
 
     // ====== TODO: NOT PASSING YET (https://github.com/microsoft/vscode-azurearmtools/issues/687)

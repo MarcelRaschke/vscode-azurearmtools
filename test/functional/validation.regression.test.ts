@@ -4,9 +4,9 @@
 
 // tslint:disable:object-literal-key-quotes no-http-string max-func-body-length
 
-import { isWin32 } from "../../extension.bundle";
 import { diagnosticSources, testDiagnostics, testDiagnosticsFromFile } from "../support/diagnostics";
 import { testWithLanguageServer, testWithLanguageServerAndRealFunctionMetadata } from "../support/testWithLanguageServer";
+import { isWin32 } from "../testConstants";
 
 suite("Validation regression tests", () => {
     testWithLanguageServer("Template validation error for evaluated variables (https://github.com/microsoft/vscode-azurearmtools/issues/380)", async () =>
@@ -95,10 +95,10 @@ suite("Validation regression tests", () => {
 
                     // tslint:disable-next-line: no-suspicious-comment
                     // TODO: https://github.com/microsoft/vscode-azurearmtools/issues/673
-                    "Error: Expected a comma (','). (arm-template (expressions)) [187,357-187,359]",
+                    "Error: Expected a comma (','). (arm-template (expressions)) [188,358-188,360]",
 
                     // Expected schema errors:
-                    "Warning: Value must be one of the following types: boolean (arm-template (schema)) [145,16-145,31]"
+                    "Warning: Value must be one of the following types: boolean (arm-template (schema)) [146,17-146,32]"
                 ]
             )
     );
@@ -318,10 +318,12 @@ suite("Validation regression tests", () => {
         }
     ]
 }`,
-                {},
+                {
+                    ignoreInfos: true,
+                },
                 [
-                    "Warning: Value must be one of the following values: \"Storage\", \"StorageV2\", \"BlobStorage\", \"FileStorage\", \"BlockBlobStorage\" (arm-template (schema)) [19,28-19,34]",
-                    "Warning: Value must be one of the following values: \"Storage\", \"StorageV2\", \"BlobStorage\", \"FileStorage\", \"BlockBlobStorage\" (arm-template (schema)) [34,12-34,18]",
+                    "Warning: Value must be one of the following values: \"Storage\", \"StorageV2\", \"BlobStorage\", \"FileStorage\", \"BlockBlobStorage\" (arm-template (schema)) [20,29-20,35]",
+                    "Warning: Value must be one of the following values: \"Storage\", \"StorageV2\", \"BlobStorage\", \"FileStorage\", \"BlockBlobStorage\" (arm-template (schema)) [35,13-35,19]",
                 ]
             );
         }
@@ -407,7 +409,8 @@ suite("Validation regression tests", () => {
                                 "value": "paramFromOuter"
                             }
                         }
-                    }
+                    },
+                    ignoreInfos: true,
                 },
                 [
                 ]
@@ -485,7 +488,8 @@ suite("Validation regression tests", () => {
                             "value": "value"
                         }
                     }
-                }
+                },
+                ignoreInfos: true,
             },
             [
             ])
@@ -525,8 +529,8 @@ suite("Validation regression tests", () => {
                     }
                 },
                 [
-                    "Error: Template validation failed: The template resource '' at line '11' and column '50' is not valid. The name property cannot be null or empty. Please see https://aka.ms/arm-template/#resources for usage details. (arm-template (validation)) [10,49-10,49]",
-                    "Warning: Missing required property \"properties\" (arm-template (schema)) [9,4-9,5]"
+                    "Error: Template validation failed: The template resource '' at line '11' and column '50' is not valid. The name property cannot be null or empty. Please see https://aka.ms/arm-template/#resources for usage details. (arm-template (validation)) [11,50-11,50]",
+                    "Warning: Missing required property \"properties\" (arm-template (schema)) [10,5-10,6]"
                 ])
         );
     }
@@ -552,7 +556,7 @@ suite("Validation regression tests", () => {
                         parametersFile: 'templates/regression/730b.parameters.json',
                     },
                     [
-                        "Error: Template validation failed: The template resource '' at line '121' and column '158' is not valid. The name property cannot be null or empty. Please see https://aka.ms/arm-template/#resources for usage details. (arm-template (validation)) [120,157-120,157]"
+                        "Error: Template validation failed: The template resource '' at line '121' and column '158' is not valid. The name property cannot be null or empty. Please see https://aka.ms/arm-template/#resources for usage details. (arm-template (validation)) [121,158-121,158]"
                     ]);
             });
         }
@@ -564,22 +568,108 @@ suite("Validation regression tests", () => {
                     parametersFile: 'templates/regression/730c.params.json',
                 },
                 [
-                    "Warning: The parameter 'projectName' is never used. (arm-template (expressions)) [791,24-791,37]",
-                    "Warning: The variable 'intlbRef' is never used. (arm-template (expressions)) [927,24-927,34]",
-                    "Warning: Value must be one of the following types: integer (arm-template (schema)) [641,16-641,30]"
+                    "Warning: The parameter 'projectName' is never used. (arm-template (expressions)) [792,25-792,38]",
+                    "Warning: The variable 'intlbRef' is never used. (arm-template (expressions)) [928,25-928,35]",
+                    "Warning: Value must be one of the following types: integer (arm-template (schema)) [642,17-642,31]"
                 ]);
         });
+    });
 
-        // https://github.com/microsoft/vscode-azurearmtools/issues/904
-        testWithLanguageServer(`#904 Validation giving false positives for top-level params used in outer-scoped nested template`, async () => {
+    // https://github.com/microsoft/vscode-azurearmtools/issues/904
+    testWithLanguageServer(`#904 Validation giving false positives for top-level params used in outer-scoped nested template`, async () => {
+        await testDiagnostics(
+            'templates/regression/904.json',
+            {
+                parametersFile: 'templates/regression/904.parameters.json',
+            },
+            [
+            ]);
+    });
+
+    // https://github.com/microsoft/vscode-azurearmtools/issues/1056
+    testWithLanguageServer(`#1056 dateTimeAdd() in certain scenarios gives a template validation error`, async () => {
+        await testDiagnostics(
+            'templates/regression/1056-dateTimeAdd.json',
+            {
+                parametersFile: 'templates/regression/1056-dateTimeAdd.parameters.json',
+            },
+            [
+            ]);
+    });
+
+    // https://github.com/microsoft/vscode-azurearmtools/issues/831
+    testWithLanguageServer(`#831 Validation error with resourceGroup() tags when using parameter file`, async () => {
+        await testDiagnostics(
+            'templates/regression/831.json',
+            {
+                parametersFile: 'templates/regression/831.parameters.json',
+            },
+            [
+                "Warning: The variable 'someTag' is never used. (arm-template (expressions)) [7,9-7,18]"
+            ]);
+    });
+
+    // tslint:disable-next-line: no-suspicious-comment
+    // TODO: https://github.com/microsoft/vscode-azurearmtools/issues/859
+    if (!isWin32) {
+        testWithLanguageServer(`#1060-rg Validation of template function "deployment" - RG scope - should give error`, async () => {
             await testDiagnostics(
-                'templates/regression/904.json',
+                'templates/regression/1060-rg.json',
                 {
-                    parametersFile: 'templates/regression/904.parameters.json',
+                    parametersFile: 'templates/regression/1060-rg.parameters.json',
+                    // Schema errors are expected
+                    ignoreSources: [diagnosticSources.schema],
                 },
                 [
+                    `Error: Template validation failed: The template resource 'mgname-test' at line '14' and column '9' is not valid: The language expression property 'location' doesn't exist, available properties are 'name, properties'.. Please see https://aka.ms/arm-template-expressions for usage details. (arm-template (validation))`
                 ]);
         });
+    }
+
+    testWithLanguageServer(`#1060-mg Validation of template function "deployment" - MG scope - should succeed`, async () => {
+        await testDiagnostics(
+            'templates/regression/1060-mg.json',
+            {
+                parametersFile: 'templates/regression/1060-mg.parameters.json'
+            },
+            [
+            ]);
+    });
+
+    // https://github.com/microsoft/vscode-azurearmtools/issues/831
+    testWithLanguageServer(`#831 Validation error with resourceGroup() tags when using parameter file`, async () => {
+        await testDiagnostics(
+            'templates/regression/831.json',
+            {
+                parametersFile: 'templates/regression/831.parameters.json',
+            },
+            [
+                "Warning: The variable 'someTag' is never used. (arm-template (expressions)) [7,9-7,18]"
+            ]);
+    });
+
+    // https://github.com/microsoft/vscode-azurearmtools/issues/967
+    testWithLanguageServer(`#967 Validation needs to recognize new top-level "scope" property `, async () => {
+        await testDiagnostics(
+            'templates/regression/967-nested-with-scope-property.json',
+            {
+                parametersFile: 'templates/regression/967-nested-with-scope-property.parameters.json',
+                includeSources: [diagnosticSources.backendValidation]
+            },
+            [
+            ]);
+    });
+
+    // https://github.com/microsoft/vscode-azurearmtools/issues/967
+    testWithLanguageServer(`#967 Validation needs to recognize new top-level "scope" property `, async () => {
+        await testDiagnostics(
+            'templates/regression/967-nested-with-scope-property.json',
+            {
+                parametersFile: 'templates/regression/967-nested-with-scope-property.parameters.json',
+                includeSources: [diagnosticSources.backendValidation]
+            },
+            [
+            ]);
     });
 
     // tslint:disable-next-line: no-suspicious-comment
