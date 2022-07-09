@@ -636,7 +636,7 @@
     },
     "dependencies": {
         "fs-extra": "^7.0.1",
-        "moment": "^2.29.1",
+        "moment": "^2.29.3",
         "nuget": "^2.0.2",
         "opn": "^5.5.0",
         "rimraf": "2.6.3",
