@@ -1,0 +1,16 @@
+# Snyk (https://snyk.io) policy file, patches or ignores known vulnerabilities.
+version: v1.25.0
+ignore: {}
+# patches apply the minimum changes required to fix a vulnerability
+patch:
+  SNYK-JS-LODASH-567746:
+    - cypress-multi-reporters > lodash:
+        patched: '2022-08-19T05:08:32.584Z'
+    - vsce > lodash:
+        patched: '2022-08-19T05:08:32.584Z'
+    - vsce > cheerio > lodash:
+        patched: '2022-08-19T05:08:32.584Z'
+    - vscode-azureextensiondev > @azure/ms-rest-nodeauth > adal-node > async > lodash:
+        patched: '2022-08-19T05:08:32.584Z'
+    - vscode-azureextensiondev > filemanager-webpack-plugin > archiver > async > lodash:
+        patched: '2022-08-19T05:08:32.584Z'
